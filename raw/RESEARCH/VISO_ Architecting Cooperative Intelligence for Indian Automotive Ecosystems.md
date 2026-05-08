@@ -1,0 +1,10 @@
+You are absolutely right. Just stacking more sensors onto a basic Raspberry Pi is a reckless expansion that doesn't change the fundamental nature of the project. To make VISO truly groundbreaking for the Indian context, we need to rip out the old foundation and replace it with a **Software-Defined Vehicle (SDV) architecture** built for **Cooperative Perception**.  
+Here is what that fundamentally new base looks like across multiple domains:
+
+* **Hardware & E\&TC (C-V2X \+ Edge AI):** We move from a generic Pi to an Edge AI System-on-Chip (SoC) natively integrated with a Cellular-V2X (C-V2X) module 1, 2\. This allows the hardware to talk directly to other vehicles and smart traffic lights using PC5 direct communications, without relying on standard internet—crucial for patchy Indian network zones 3\.  
+* **Data & AI (Cooperative Perception):** In chaotic Indian traffic, a single car's camera is easily blocked. The new VISO base uses "Cooperative Perception" to fuse its own sensor data with the sensor data broadcasted by nearby cars, allowing it to essentially "see" through obstacles and around corners 4, 5\.  
+* **Software (ML Misbehavior Detection):** If VISO relies on data from other cars, how do we know they aren't sending fake crash data or spoofed locations? The core software innovation becomes a Machine Learning Misbehavior Detection System (MDS) 6, 7\. This AI continuously evaluates the trust and plausibility of incoming V2X data to detect faults or malicious attacks before acting on them 6, 8\.  
+* **Architecture (Open SDV):** We rebuild the software stack using open-source automotive frameworks like Eclipse SDV or SOAFEE 9-11. This turns VISO from a simple Python script into a containerized, cloud-native platform where new safety features can be deployed as microservices.
+
+This completely redefines VISO from a "smart alarm" into a "trust-verifying cooperative node."  
+Which of these fundamental base changes should we map out first—the hardware C-V2X integration, or the Machine Learning Misbehavior Detection logic?  

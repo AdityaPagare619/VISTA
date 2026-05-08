@@ -1,0 +1,41 @@
+# VISTA Project - Python Dependencies
+# Install: pip install -r requirements.txt
+
+# ── Hardware Abstraction ──────────────────────────────────────
+obd==0.7.1                      # OBD-II data reading (ELM327)
+mpu6050-raspberrypi==1.2         # IMU sensor driver
+picamera2==0.3.19                # Pi Camera v3 (pre-installed on Bookworm)
+gpiozero==2.0.1                  # GPIO control (pre-installed)
+pyserial==3.5                    # Serial communication
+smbus2==0.4.3                    # I2C communication
+
+# ── Audio Processing ──────────────────────────────────────────
+PyAudio==0.2.14                  # Audio capture
+numpy==1.26.4                    # Numerical computation
+scipy==1.13.0                    # Signal processing
+librosa==0.10.2                  # Audio feature extraction
+
+# ── Machine Learning ──────────────────────────────────────────
+tflite-runtime==2.14.0           # TensorFlow Lite inference
+scikit-learn==1.4.2              # Random Forest (driver behavior)
+
+# ── Cloud APIs ────────────────────────────────────────────────
+google-generativeai==0.7.2       # Gemini Vision API
+requests==2.31.0                 # HTTP client (WhatsApp/Telegram)
+
+# ── Communication ─────────────────────────────────────────────
+paho-mqtt==1.6.1                 # MQTT client
+bleak==0.22.2                    # BLE communication
+
+# ── Data Storage ──────────────────────────────────────────────
+influxdb-client==1.44.0          # InfluxDB Python client
+
+# ── Web Dashboard ─────────────────────────────────────────────
+flask==3.0.3                     # Web framework
+flask-socketio==5.3.6            # WebSocket for live updates
+
+# ── Utilities ─────────────────────────────────────────────────
+pyyaml==6.0.1                    # YAML config parsing
+python-dotenv==1.0.1             # .env file loading
+loguru==0.7.2                    # Advanced logging
+psutil==5.9.8                    # System monitoring

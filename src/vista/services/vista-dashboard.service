@@ -1,0 +1,36 @@
+[Unit]
+Description=VISTA Dashboard Web Interface
+Documentation=https://github.com/vista-project/vista
+After=vista.service network.target
+BindsTo=vista.service
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/vista
+ExecStart=/home/pi/vista/venv/bin/python /home/pi/vista/dashboard/app.py
+Restart=always
+RestartSec=5
+TimeoutStartSec=15
+TimeoutStopSec=10
+
+# Security
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/pi/vista/data /home/pi/vista/logs
+ReadOnlyPaths=/home/pi/vista
+
+# Environment
+Environment="FLASK_ENV=production"
+EnvironmentFile=-/home/pi/vista/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vista-dashboard
+
+[Install]
+WantedBy=multi-user.target

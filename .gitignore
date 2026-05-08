@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.env
+*.egg-info/
+
+# ML Models
+models/*.tflite
+models/*.pkl
+models/*.h5
+models/*.onnx
+
+# Data
+data_storage/
+*.db
+*.db-journal
+data/telegram_chat_id.txt
+
+# Captured images
+*.jpg
+*.jpeg
+*.png
+data/images/
+
+# Audio recordings
+*.wav
+*.mp3
+demo/sounds/
+
+# Logs
+logs/
+*.log
+
+# ESP32
+esp32/build/
+esp32/sdkconfig
+esp32/sdkconfig.old
+esp32/managed_components/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets
+*.pem
+*.key
+credentials.json
+service-account.json
+
+# Raspberry Pi
+*.pyc.bak

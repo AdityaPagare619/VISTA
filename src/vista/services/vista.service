@@ -1,0 +1,42 @@
+[Unit]
+Description=VISTA Vehicle Intelligence & Safety Telematics
+Documentation=https://github.com/vista-project/vista
+After=network.target network-online.target influxdb.service mosquitto.service
+Wants=network-online.target influxdb.service mosquitto.service
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/vista
+ExecStart=/home/pi/vista/venv/bin/python /home/pi/vista/main.py --mode driving
+ExecStop=/bin/kill -SIGTERM $MAINPID
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=30
+TimeoutStopSec=20
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/pi/vista/data /home/pi/vista/logs
+ReadOnlyPaths=/home/pi/vista
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=512M
+CPUQuota=80%
+
+# Environment
+Environment="DEMO_MODE=false"
+EnvironmentFile=-/home/pi/vista/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vista
+
+[Install]
+WantedBy=multi-user.target

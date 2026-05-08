@@ -1,0 +1,140 @@
+# VISTA - Vehicle Intelligence & Safety Telematics Architecture
+# Configuration File
+# Version 2.1 - Smart Engineering
+
+device:
+  id: "VISTA-0001"
+  name: "Demo Vehicle"
+
+# ── Sensor Configuration ──────────────────────────────────────
+
+sensors:
+  obd:
+    enabled: true
+    port: "/dev/ttyUSB0"          # USB ELM327 adapter
+    baudrate: 38400
+    poll_interval: 0.1            # 10 Hz
+
+  imu:
+    enabled: true
+    bus: 1                        # I2C bus
+    address: 0x68                 # MPU6050 default
+    sample_rate: 100              # Hz
+    accel_range: 8                # ±8g
+    gyro_range: 500               # ±500°/s
+
+  audio:
+    enabled: true
+    device_index: 0               # USB microphone
+    sample_rate: 16000            # Hz
+    window_seconds: 1.0           # Classification window
+    channels: 1                   # Mono
+    model_path: "models/audio_cnn.tflite"
+
+  camera:
+    enabled: true
+    resolution: [2304, 1296]      # ~3MP for API
+    quality: 85                   # JPEG quality (1-100)
+    burst_count: 5                # Frames for crash capture
+    burst_interval_ms: 100
+
+# ── Fusion Engine ─────────────────────────────────────────────
+
+fusion:
+  dt: 0.1                         # Time step (seconds)
+  process_noise: [0.1, 0.01, 0.01]  # Q matrix diagonal
+  measurement_noise: [1.0, 0.5, 0.5] # R matrix diagonal
+
+# ── Decision Engine ───────────────────────────────────────────
+
+decision:
+  crash:
+    alert_threshold: 0.65         # Confidence > this = alert
+    warning_threshold: 0.40       # Confidence > this = warning
+    sensor_weights:
+      imu_jerk: 0.35
+      obd_throttle: 0.25
+      audio: 0.25
+      vision: 0.15
+
+  theft:
+    alert_threshold: 0.70
+    sensor_weights:
+      pir: 0.40
+      camera: 0.35
+      ignition: 0.25
+
+  driver_behavior:
+    harsh_braking_jerk_threshold: 3.0   # g/s
+    rapid_accel_threshold: 0.5         # g
+    analysis_interval_hours: 24
+
+# ── Cloud Services ────────────────────────────────────────────
+
+cloud:
+  vision:
+    provider: "gemini"            # gemini | openai
+    model: "gemini-1.5-flash"
+    api_key_env: "GEMINI_API_KEY"
+    max_retries: 3
+    timeout_seconds: 10
+
+  alerts:
+    telegram:
+      enabled: true
+      bot_token_env: "TELEGRAM_BOT_TOKEN"
+      # Chat ID auto-captured on first /start command
+      chat_id_file: "data/telegram_chat_id.txt"
+
+# ── Communication ─────────────────────────────────────────────
+
+communication:
+  mqtt:
+    broker_host: "localhost"
+    broker_port: 1883
+    topic_prefix: "vista"
+    qos: 1
+
+  ble:
+    device_name: "VISTA-0001"
+    service_uuid: "0000VISTA-0000-1000-8000-00805F9B34FB"
+    advertising_interval_ms: 100
+
+  wifi:
+    hotspot_ssid: "VISTA-Demo"
+    hotspot_password: "vista1234"
+    fallback_network: ""          # Connect to known WiFi if available
+
+# ── Storage ───────────────────────────────────────────────────
+
+storage:
+  influxdb:
+    host: "localhost"
+    port: 8086
+    token_env: "INFLUXDB_TOKEN"
+    org: "vista"
+    bucket: "vista_telemetry"
+    retention_days: 30
+
+  sqlite:
+    path: "data/events.db"
+
+  images:
+    path: "data/images"
+    max_size_mb: 500
+    retention_days: 30
+
+# ── System ────────────────────────────────────────────────────
+
+system:
+  log_level: "INFO"               # DEBUG | INFO | WARNING | ERROR
+  log_path: "logs/vista.log"
+  demo_mode: false                # Enable for classroom demos
+
+# ── ESP32 ─────────────────────────────────────────────────────
+
+esp32:
+  wake_gpio: 5                    # Pi GPIO → ESP32 WAKE
+  status_gpio: 6                  # Pi GPIO ← ESP32 STATUS
+  battery_low_voltage: 11.8       # Stop waking Pi below this
+  pir_timeout_minutes: 5          # Pi sleep after no motion

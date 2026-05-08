@@ -1,0 +1,53 @@
+# ESP32-C3 SDK Configuration for VISTA Sentinel
+# Target: ESP32-C3 (RISC-V)
+# Framework: ESP-IDF v5.2+
+
+# ── Target ─────────────────────────────────────────────────────
+CONFIG_IDF_TARGET="esp32c3"
+
+# ── BLE Configuration ─────────────────────────────────────────
+CONFIG_BT_ENABLED=y
+CONFIG_BT_CONTROLLER_ONLY=y
+CONFIG_BT_CONTROLLER_ENABLED=y
+CONFIG_BTDM_CTRL_MODE_BLE_ONLY=y
+CONFIG_BTDM_CTRL_BLE_MAX_CONN=2
+CONFIG_BTDM_CTRL_BR_EDR_SCO_DATA_PATH_EFF=0
+CONFIG_BTDM_CTRL_PCM_ROLE_EFF=0
+CONFIG_BTDM_CTRL_PCM_POLAR_EFF=0
+CONFIG_BTDM_BLE_SLEEP_CLOCK_ACCURACY_INDEX_EFF=1
+
+# ── Power Management ──────────────────────────────────────────
+CONFIG_PM_ENABLE=y
+CONFIG_PM_DFS_INIT_AUTO=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+CONFIG_PM_SLEEP_MINIMUM_CPU_FREQUENCY_MHZ=10
+
+# ── Deep Sleep ────────────────────────────────────────────────
+CONFIG_ESP_SLEEP_POWER_DOWN_FLASH=y
+CONFIG_ESP_SLEEP_GPIO_RESET_WORKAROUND=y
+
+# ── FreeRTOS ──────────────────────────────────────────────────
+CONFIG_FREERTOS_HZ=100
+CONFIG_FREERTOS_UNICORE=y
+
+# ── Logging ───────────────────────────────────────────────────
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_MAXIMUM_LEVEL_INFO=y
+
+# ── Flash Size ────────────────────────────────────────────────
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_SINGLE_APP=y
+
+# ── Console ───────────────────────────────────────────────────
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_UART_NUM=0
+
+# ── GPIO ──────────────────────────────────────────────────────
+# GPIO0: PIR input (configured in code)
+# GPIO4: Pi WAKE output (ESP32 → Pi GPIO5)
+# GPIO6: Pi STATUS input (Pi GPIO6 → ESP32)
+# GPIO8: Battery ADC input
+
+# ── Debug ─────────────────────────────────────────────────────
+CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT=y
+CONFIG_ESP_DEBUG_OCDAWARE=y
