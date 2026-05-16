@@ -50,10 +50,27 @@ class SQLiteManager:
         self._device_id: str = device_cfg.get("id", "VISTA-0001")
         self._demo_mode = _is_demo_mode()
 
-        # Database path
-        db_path_str = sqlite_cfg.get("path", "data/events.db")
-        self._db_path = Path(db_path_str)
-        if not self._db_path.is_absolute():
+        # Database path (v3.0: prefer USB SSD, fallback to local)
+        storage_cfg = cfg.get("storage", {})
+        sqlite_cfg = storage_cfg.get("sqlite", {})
+        ssd_mount = storage_cfg.get("data_mount", "/mnt/vista-data")
+        ssd_path = Path(ssd_mount) / "events.db"
+        fallback_path = sqlite_cfg.get("fallback_path", "data/events.db")
+        primary_path = sqlite_cfg.get("path", str(ssd_path))
+
+        # Try SSD mount first, then fallback
+        self._db_path = Path(primary_path)
+        if not self._db_path.parent.exists():
+            # SSD not mounted — use local fallback
+            self._db_path = Path(fallback_path)
+            if not self._db_path.is_absolute():
+                package_root = Path(__file__).resolve().parent.parent
+                self._db_path = package_root / self._db_path
+            logger.warning(
+                f"USB SSD not mounted at {ssd_mount} — "
+                f"using local fallback: {self._db_path}"
+            )
+        elif not self._db_path.is_absolute():
             package_root = Path(__file__).resolve().parent.parent
             self._db_path = package_root / self._db_path
 

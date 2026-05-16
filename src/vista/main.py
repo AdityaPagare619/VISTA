@@ -123,59 +123,88 @@ logger.add(
 # Module Imports (graceful degradation for modules not yet built)
 # ══════════════════════════════════════════════════════════════════════
 
-# ── HAL (fully implemented) ─────────────────────────────────────────
+# ── HAL (v3.0: includes PowerManager) ──────────────────────────────
 try:
     from hal import OBDReader, IMUReader, AudioCapture, CameraCapture, GPIOManager
+    from hal import PowerManager
 
     HAL_AVAILABLE = True
 except ImportError as exc:
     logger.error(f"HAL import failed: {exc}")
     HAL_AVAILABLE = False
-    OBDReader, IMUReader, AudioCapture, CameraCapture, GPIOManager = (
-        None,
-        None,
-        None,
-        None,
-        None,
-    )
+    OBDReader = IMUReader = AudioCapture = CameraCapture = GPIOManager = None
+    PowerManager = None
 
-# ── Intelligence (stub — modules may not exist yet) ─────────────────
+# ── Intelligence (v3.0: VelocityEKF + CrashDetector) ───────────────
 try:
     from intelligence import (
-        FusionEngine,
+        VelocityEKF,
+        CrashDetector,
+        CrashEvidence,
         AudioClassifier,
         DecisionEngine,
         CloudVision,
         Evidence,
     )
+    FusionEngine = VelocityEKF  # backward compat alias
 
     INTEL_AVAILABLE = True
 except (ImportError, SyntaxError) as exc:
     logger.warning(f"Intelligence layer not available: {exc} — running without")
     INTEL_AVAILABLE = False
-    FusionEngine, AudioClassifier, DecisionEngine, CloudVision, Evidence = (
-        None,
-        None,
-        None,
-        None,
-        None,
-    )
+    VelocityEKF = CrashDetector = CrashEvidence = FusionEngine = None
+    AudioClassifier = DecisionEngine = CloudVision = Evidence = None
+
+# ── V4 Intelligence (TheftDetector + NVH + HealthMonitor) ───────────
+try:
+    from intelligence.theft_detector import TheftDetector
+    THEFT_AVAILABLE = True
+except (ImportError, SyntaxError) as exc:
+    logger.warning(f"TheftDetector not available: {exc}")
+    THEFT_AVAILABLE = False
+    TheftDetector = None
+
+try:
+    from intelligence.predictive_analytics import PredictiveAnalyticsEngine
+    NVH_AVAILABLE = True
+except (ImportError, SyntaxError) as exc:
+    logger.warning(f"PredictiveAnalyticsEngine not available: {exc}")
+    NVH_AVAILABLE = False
+    PredictiveAnalyticsEngine = None
+
+try:
+    from intelligence.health_monitor import SystemHealthMonitor
+    HEALTH_AVAILABLE = True
+except (ImportError, SyntaxError) as exc:
+    logger.warning(f"SystemHealthMonitor not available: {exc}")
+    HEALTH_AVAILABLE = False
+    SystemHealthMonitor = None
+
+# ── Data Layer ──────────────────────────────────────────────────────
+try:
+    from data.sqlite_manager import SQLiteManager
+    DATA_AVAILABLE = True
+except (ImportError, SyntaxError) as exc:
+    logger.warning(f"Data layer not available: {exc}")
+    DATA_AVAILABLE = False
+    SQLiteManager = None
 
 # ── Communication (stub — Decision dataclass exists, rest may not) ──
 try:
     from communication import Decision, MQTTManager, BLEManager, AlertManager
+    from communication import TelegramAlertBot
 
     COMM_AVAILABLE = True
 except ImportError as exc:
     # Fallback: only the Decision dataclass may be importable from __init__
     try:
         from communication import Decision
-
         COMM_AVAILABLE = True
     except ImportError:
         logger.warning(f"Communication layer not available: {exc} — running without")
         COMM_AVAILABLE = False
         Decision, MQTTManager, BLEManager, AlertManager = None, None, None, None
+    TelegramAlertBot = None
 
 # ── Dashboard (stub — import may fail) ──────────────────────────────
 try:
@@ -294,39 +323,88 @@ def init_hal(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def init_intelligence(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    """Initialize Intelligence modules (best-effort)."""
+    """Initialize Intelligence modules (best-effort).
+
+    v3.0: VelocityEKF and CrashDetector are separate because velocity
+    estimation (smooth, continuous) and crash detection (discontinuous,
+    signature-based) are fundamentally different problems that need
+    fundamentally different tools.
+
+    v4.0: Adds TheftDetector (Ghost Key TSA), PredictiveAnalyticsEngine
+    (NVH simulation), and SystemHealthMonitor.
+    """
     modules: Dict[str, Any] = {}
     if not INTEL_AVAILABLE:
         logger.warning("Intelligence layer not available — skipping")
         return modules
 
+    # v3.0: 2-state EKF for velocity only (NOT crash detection)
     try:
-        fusion = FusionEngine()
-        modules["fusion"] = fusion
-        logger.info("FusionEngine started")
+        if VelocityEKF is not None:
+            ekf = VelocityEKF()
+            modules["velocity_ekf"] = ekf
+            modules["fusion"] = ekf  # backward compat key
+            logger.info("VelocityEKF started (2-state, v3.0)")
     except Exception as exc:
-        logger.error(f"FusionEngine failed: {exc}")
+        logger.error(f"VelocityEKF failed: {exc}")
+
+    # v3.0: Signature-aware crash detector (separated from EKF)
+    try:
+        if CrashDetector is not None:
+            crash = CrashDetector()
+            modules["crash_detector"] = crash
+            logger.info("CrashDetector started (signature-aware, v3.0)")
+    except Exception as exc:
+        logger.error(f"CrashDetector failed: {exc}")
 
     try:
-        classifier = AudioClassifier()
-        modules["audio_classifier"] = classifier
-        logger.info("AudioClassifier started")
+        if AudioClassifier is not None:
+            classifier = AudioClassifier()
+            modules["audio_classifier"] = classifier
+            logger.info("AudioClassifier started")
     except Exception as exc:
         logger.error(f"AudioClassifier failed: {exc}")
 
     try:
-        decision = DecisionEngine()
-        modules["decision_engine"] = decision
-        logger.info("DecisionEngine started")
+        if DecisionEngine is not None:
+            decision = DecisionEngine()
+            modules["decision_engine"] = decision
+            logger.info("DecisionEngine started")
     except Exception as exc:
         logger.error(f"DecisionEngine failed: {exc}")
 
     try:
-        vision = CloudVision()
-        modules["cloud_vision"] = vision
-        logger.info("CloudVision started")
+        if CloudVision is not None:
+            vision = CloudVision()
+            modules["cloud_vision"] = vision
+            logger.info("CloudVision started")
     except Exception as exc:
         logger.error(f"CloudVision failed: {exc}")
+
+    # ── V4 modules ─────────────────────────────────────────────────
+    try:
+        if THEFT_AVAILABLE and TheftDetector is not None:
+            theft = TheftDetector()
+            modules["theft_detector"] = theft
+            logger.info("TheftDetector started (Ghost Key TSA, v4.0)")
+    except Exception as exc:
+        logger.error(f"TheftDetector failed: {exc}")
+
+    try:
+        if NVH_AVAILABLE and PredictiveAnalyticsEngine is not None:
+            nvh = PredictiveAnalyticsEngine()
+            modules["nvh_analytics"] = nvh
+            logger.info("PredictiveAnalyticsEngine started (NVH simulation, v4.0)")
+    except Exception as exc:
+        logger.error(f"PredictiveAnalyticsEngine failed: {exc}")
+
+    try:
+        if HEALTH_AVAILABLE and SystemHealthMonitor is not None:
+            health = SystemHealthMonitor()
+            modules["health_monitor"] = health
+            logger.info("SystemHealthMonitor started (v4.0)")
+    except Exception as exc:
+        logger.error(f"SystemHealthMonitor failed: {exc}")
 
     return modules
 
@@ -383,6 +461,55 @@ def init_dashboard(cfg: Dict[str, Any]) -> Optional[Any]:
 # Telemetry Helpers
 # ══════════════════════════════════════════════════════════════════════
 
+# Module-level InfluxDB singleton (created once, reused every tick)
+_influx_client: Any = None
+_influx_write_api: Any = None
+_influx_bucket: str = "vista_telemetry"
+_influx_device_id: str = "VISTA-0001"
+_influx_initialized: bool = False
+
+
+def _get_influx_writer() -> Any:
+    """Lazily initialize the InfluxDB client singleton.
+
+    Returns the write_api, or None if InfluxDB is unavailable.
+    Creates ONE TCP connection that's reused for all subsequent writes,
+    instead of the old approach that created a new connection every 500ms.
+    """
+    global _influx_client, _influx_write_api, _influx_bucket, _influx_device_id, _influx_initialized
+    if _influx_initialized:
+        return _influx_write_api
+
+    _influx_initialized = True  # Only try once
+    try:
+        import influxdb_client
+        from influxdb_client.client.write_api import SYNCHRONOUS
+
+        cfg = load_config()
+        influx_cfg = cfg.get("storage", {}).get("influxdb", {})
+        token = os.environ.get(influx_cfg.get("token_env", "INFLUXDB_TOKEN"), "")
+        if not token:
+            logger.debug("InfluxDB token not set — telemetry writes disabled")
+            return None
+
+        _influx_client = influxdb_client.InfluxDBClient(
+            url=f"http://{influx_cfg.get('host', 'localhost')}:{influx_cfg.get('port', 8086)}",
+            token=token,
+            org=influx_cfg.get("org", "vista"),
+        )
+        _influx_write_api = _influx_client.write_api(write_options=SYNCHRONOUS)
+        _influx_bucket = influx_cfg.get("bucket", "vista_telemetry")
+        _influx_device_id = cfg.get("device", {}).get("id", "VISTA-0001")
+        logger.info(f"InfluxDB client initialized (singleton) | bucket={_influx_bucket}")
+        return _influx_write_api
+    except ImportError:
+        logger.debug("influxdb-client not installed — telemetry writes disabled")
+        return None
+    except Exception as exc:
+        logger.debug(f"InfluxDB init failed: {exc}")
+        return None
+
+
 def write_telemetry_point(
     obd: Any, imu: Any, modules: Dict[str, Any], timestamp: float
 ) -> None:
@@ -436,24 +563,15 @@ def write_telemetry_point(
             f"rpm={data['rpm']:.0f} | throttle={data['throttle']:.0f}%"
         )
 
-        # Write to InfluxDB (best-effort)
-        try:
-            import influxdb_client
-            from influxdb_client.client.write_api import SYNCHRONOUS
+        # Write to InfluxDB via singleton client (best-effort)
+        write_api = _get_influx_writer()
+        if write_api:
+            try:
+                import influxdb_client
 
-            cfg = load_config()
-            influx_cfg = cfg.get("storage", {}).get("influxdb", {})
-            token = os.environ.get(influx_cfg.get("token_env", "INFLUXDB_TOKEN"), "")
-            if token:
-                client = influxdb_client.InfluxDBClient(
-                    url=f"http://{influx_cfg.get('host', 'localhost')}:{influx_cfg.get('port', 8086)}",
-                    token=token,
-                    org=influx_cfg.get("org", "vista"),
-                )
-                write_api = client.write_api(write_options=SYNCHRONOUS)
                 point = (
                     influxdb_client.Point("telemetry")
-                    .tag("device", cfg.get("device", {}).get("id", "VISTA-0001"))
+                    .tag("device", _influx_device_id)
                     .field("speed_kmh", float(data["speed"]))
                     .field("rpm", float(data["rpm"]))
                     .field("throttle_pct", float(data["throttle"]))
@@ -465,15 +583,9 @@ def write_telemetry_point(
                     .field("gyro_z_dps", float(data["gyro_z"]))
                     .time(timestamp)
                 )
-                write_api.write(
-                    bucket=influx_cfg.get("bucket", "vista_telemetry"),
-                    record=point,
-                )
-                client.close()
-        except ImportError:
-            pass  # influxdb-client not installed — skip silently
-        except Exception as exc:
-            logger.debug(f"InfluxDB write skipped: {exc}")
+                write_api.write(bucket=_influx_bucket, record=point)
+            except Exception as exc:
+                logger.debug(f"InfluxDB write skipped: {exc}")
 
     except Exception as exc:
         logger.warning(f"Telemetry write failed (non-fatal): {exc}")
@@ -504,47 +616,85 @@ def run_audio_classification(
 def check_crash_conditions(
     modules: Dict[str, Any], obd: Any, audio_label: Optional[str]
 ) -> Optional[Dict[str, Any]]:
-    """Check for crash conditions via decision engine. Returns decision dict or None."""
+    """v3.0: Check for crash using signature-aware CrashDetector.
+
+    The foundational logic change: instead of asking "are sensor numbers
+    above thresholds?", we ask "does the temporal PATTERN of sensor data
+    match the physics signature of a crash?"
+
+    This uses CrashEvidence to build proper multi-modal evidence, not
+    raw numbers. The CrashDetector then validates the IMU signature
+    (sustained vs brief spike), combines with audio/OBD corroboration,
+    and produces a confidence-weighted decision.
+    """
     try:
-        decision_engine = modules.get("decision_engine")
-        if not decision_engine:
+        crash_detector = modules.get("crash_detector")
+        if not crash_detector:
             if is_demo_mode():
-                # Simulated crash detection: check audio label
                 if audio_label == "crash":
                     return {"event_type": "crash", "confidence": 0.85, "severity": "critical"}
             return None
 
-        # Gather sensor evidence
-        evidence: Dict[str, float] = {}
+        # ── Build CrashEvidence from available sensors ───────────
+        evidence_kwargs: Dict[str, Any] = {"timestamp": time.time()}
 
-        # IMU jerk
-        imu = modules.get("imu")
-        if imu and hasattr(imu, "get_all"):
+        # Tier 1: IMU — compute proper jerk and check saturation
+        imu_reader = modules.get("imu")
+        if imu_reader and hasattr(imu_reader, "get_all"):
             try:
-                imu_data = imu.get_all()
+                imu_data = imu_reader.get_all()
                 accel = imu_data.get("accel", (0, 0, 0))
-                evidence["imu_jerk"] = abs(accel[0]) if accel else 0.0
-            except Exception:
-                evidence["imu_jerk"] = 0.0
+                if accel:
+                    ax, ay, az = accel
+                    import math
+                    magnitude = math.sqrt(ax**2 + ay**2 + az**2)
 
-        # OBD throttle drop
-        if obd and hasattr(obd, "get_throttle_position"):
+                    # Feed to crash detector for pattern tracking
+                    dt = 1.0 / 100.0  # IMU at 100Hz
+                    jerk = crash_detector.check_imu(magnitude, dt)
+                    saturated = crash_detector.is_saturated(ax, ay, az)
+
+                    evidence_kwargs["imu_jerk"] = jerk
+                    evidence_kwargs["imu_saturated"] = saturated
+                    evidence_kwargs["imu_accel_magnitude"] = magnitude
+            except Exception:
+                pass
+
+        # Tier 2: Audio — CNN classification result
+        if audio_label and audio_label != "normal":
+            evidence_kwargs["audio_class"] = audio_label
+            evidence_kwargs["audio_confidence"] = 0.8  # Default if not provided
+
+        # Tier 3: OBD — async corroboration (speed/throttle drops)
+        if obd and hasattr(obd, "get_speed"):
             try:
-                evidence["obd_throttle"] = obd.get_throttle_position() or 0.0
+                speed = obd.get_speed()
+                throttle = obd.get_throttle_position() if hasattr(obd, "get_throttle_position") else None
+                if speed is not None and speed <= 2.0:
+                    evidence_kwargs["obd_speed_drop"] = 30.0  # Stopped = likely crash
+                if throttle is not None and throttle <= 5.0:
+                    evidence_kwargs["obd_throttle_drop"] = 50.0
             except Exception:
-                evidence["obd_throttle"] = 0.0
+                pass
 
-        # Audio evidence
-        if audio_label:
-            evidence["audio"] = 1.0 if audio_label in ("crash", "collision") else 0.0
+        # Build evidence and assess
+        if CrashEvidence is not None:
+            evidence = CrashEvidence(**evidence_kwargs)
+            result = crash_detector.assess(evidence)
 
-        decision = decision_engine.evaluate(evidence)
-        if decision and getattr(decision, "severity", "info") in ("critical", "warning"):
-            return {
-                "event_type": getattr(decision, "event_type", "unknown"),
-                "confidence": getattr(decision, "confidence", 0.0),
-                "severity": getattr(decision, "severity", "info"),
-            }
+            if result.get("is_crash"):
+                return {
+                    "event_type": "crash",
+                    "confidence": result["confidence"],
+                    "severity": result["severity"],
+                    "explanation": result.get("explanation", ""),
+                }
+            elif result.get("severity") == "warning":
+                logger.info(
+                    f"Crash WARNING (not confirmed): "
+                    f"confidence={result['confidence']:.0%}"
+                )
+
         return None
     except Exception as exc:
         logger.debug(f"Crash check skipped: {exc}")
@@ -557,7 +707,11 @@ def handle_crash_alert(
     camera: Any,
     timestamp: float,
 ) -> None:
-    """Handle crash alert: capture image, run cloud vision, send alerts."""
+    """Handle crash alert: persist locally FIRST, then capture image, cloud vision, alerts.
+
+    v4.0: Critical events are persisted to SQLite BEFORE sending Telegram.
+    If network fails, the event is still recorded locally.
+    """
     event_type = decision.get("event_type", "crash")
     confidence = decision.get("confidence", 0.0)
     severity = decision.get("severity", "critical")
@@ -566,6 +720,20 @@ def handle_crash_alert(
         f"🚨 {event_type.upper()} DETECTED | "
         f"confidence={confidence:.2f} | severity={severity}"
     )
+
+    # 0. PERSIST LOCALLY FIRST (v4.0 — survives network failures)
+    db = modules.get("sqlite")
+    if db and hasattr(db, "log_event"):
+        try:
+            db.log_event(
+                event_type=event_type,
+                confidence=confidence,
+                severity=severity,
+                notes=decision.get("explanation", ""),
+            )
+            logger.info(f"Event persisted to SQLite: {event_type}")
+        except Exception as exc:
+            logger.error(f"SQLite event persist failed (non-fatal): {exc}")
 
     # 1. Buzzer alert
     gpio = modules.get("gpio")
@@ -614,6 +782,14 @@ def handle_crash_alert(
         except Exception as exc:
             logger.error(f"Alert send failed: {exc}")
 
+    # 5. Update health monitor with event
+    health = modules.get("health_monitor")
+    if health:
+        try:
+            health.ping_sensor("crash_event")
+        except Exception:
+            pass
+
 
 # ══════════════════════════════════════════════════════════════════════
 # Mode: Driving
@@ -633,8 +809,11 @@ def run_driving_mode(cfg: Dict[str, Any], modules: Dict[str, Any]) -> None:
     audio_interval = 1.0  # Classify audio every 1 second
     last_vision_time = 0.0
     vision_interval = 300.0  # Camera + vision every 5 minutes
+    last_health_time = 0.0
+    health_interval = 30.0  # Health report every 30 seconds
 
     iteration = 0
+    health_monitor = modules.get("health_monitor")
 
     while state.is_running():
         tick_start = time.monotonic()
@@ -643,25 +822,51 @@ def run_driving_mode(cfg: Dict[str, Any], modules: Dict[str, Any]) -> None:
         # ── Poll OBD + IMU ──────────────────────────────────────────
         write_telemetry_point(obd, modules.get("imu"), modules, now)
 
+        # ── Ping health monitor (sensor liveness tracking) ──────────
+        if health_monitor:
+            if obd and hasattr(obd, "get_speed"):
+                try:
+                    if obd.get_speed() is not None:
+                        health_monitor.ping_sensor("obd")
+                except Exception:
+                    pass
+            imu_reader = modules.get("imu")
+            if imu_reader and hasattr(imu_reader, "get_acceleration"):
+                try:
+                    if imu_reader.get_acceleration() is not None:
+                        health_monitor.ping_sensor("imu")
+                except Exception:
+                    pass
+            audio_mod = modules.get("audio")
+            if audio_mod and hasattr(audio_mod, "is_running") and audio_mod.is_running:
+                health_monitor.ping_sensor("audio")
+
         # ── Audio classification every 1s ───────────────────────────
         audio_label: Optional[str] = None
         if now - last_audio_time >= audio_interval:
             audio_label = run_audio_classification(modules, now)
             last_audio_time = now
 
-        # ── EKF fusion (if available) ───────────────────────────────
-        fusion = modules.get("fusion")
-        if fusion and hasattr(fusion, "update"):
+        # ── EKF velocity fusion (v3.0: predict + update separately) ──
+        ekf = modules.get("velocity_ekf") or modules.get("fusion")
+        if ekf and hasattr(ekf, "predict"):
             try:
+                # Predict with IMU forward acceleration
                 imu = modules.get("imu")
-                accel = None
                 if imu and hasattr(imu, "get_all"):
                     imu_data = imu.get_all()
                     accel = imu_data.get("accel")
-                if accel:
-                    fusion.update(accel, now)
+                    if accel:
+                        # accel[0] = forward axis in g
+                        ekf.predict(accel[0])
+
+                # Update with OBD speed (async, ~2Hz)
+                if obd and hasattr(obd, "get_speed"):
+                    speed = obd.get_speed()
+                    if speed is not None:
+                        ekf.update(speed)
             except Exception as exc:
-                logger.debug(f"Fusion update skipped: {exc}")
+                logger.debug(f"VelocityEKF update skipped: {exc}")
 
         # ── Crash check ─────────────────────────────────────────────
         crash = check_crash_conditions(modules, obd, audio_label)
@@ -685,6 +890,23 @@ def run_driving_mode(cfg: Dict[str, Any], modules: Dict[str, Any]) -> None:
                 except Exception as exc:
                     logger.debug(f"Periodic capture skipped: {exc}")
             last_vision_time = now
+
+        # ── Health report every 30s ─────────────────────────────────
+        if health_monitor and now - last_health_time >= health_interval:
+            try:
+                ekf_state = {}
+                if ekf and hasattr(ekf, "get_state"):
+                    ekf_state = ekf.get_state()
+                report = health_monitor.get_full_health_report(ekf_state)
+                logger.info(
+                    f"Health | status={report.get('overall_status')} | "
+                    f"capacity={report.get('detection_capacity', 0):.0%} | "
+                    f"live={report.get('live_sensors', [])} | "
+                    f"dead={report.get('dead_sensors', [])}"
+                )
+            except Exception as exc:
+                logger.debug(f"Health report failed: {exc}")
+            last_health_time = now
 
         iteration += 1
         if iteration % 100 == 0:
@@ -853,6 +1075,15 @@ def main() -> None:
     images_dir.mkdir(parents=True, exist_ok=True)
     logs_dir = _VISTA_ROOT / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
+
+    # Initialize SQLite event database (v4.0 — persist crash/theft events)
+    if DATA_AVAILABLE and SQLiteManager is not None:
+        try:
+            db = SQLiteManager()
+            modules["sqlite"] = db
+            logger.info("SQLiteManager started (event persistence)")
+        except Exception as exc:
+            logger.error(f"SQLiteManager failed: {exc}")
     logger.info("Data directories ready")
 
     # ── Phase 4: Initialize Communication ──────────────────────────

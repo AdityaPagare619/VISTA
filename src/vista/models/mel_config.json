@@ -1,0 +1,26 @@
+{
+  "sample_rate": 16000,
+  "n_fft": 1024,
+  "hop_length": 512,
+  "n_mels": 64,
+  "window_sec": 1.0,
+  "fmin": 20,
+  "fmax": 8000,
+  "classes": [
+    "crash",
+    "normal_driving",
+    "horn",
+    "siren",
+    "pothole",
+    "harsh_braking"
+  ],
+  "yamnet_embedding_dim": 1024,
+  "classifier_hidden": 128,
+  "notes": {
+    "why_16khz": "Required by YAMNet. Human hearing covers 20-20kHz, Nyquist says 16kHz captures up to 8kHz which includes all crash-relevant frequencies",
+    "why_64_mels": "Standard for MobileNet-based audio models. More bins = more compute for marginal gain",
+    "why_1sec_window": "Crashes last 50-300ms. 1s window captures the full event with pre/post context",
+    "target_device": "Raspberry Pi 4 (ARM Cortex-A72, 2GB RAM, no GPU)",
+    "inference_budget": "25ms per frame (YAMNet) or 5ms (custom CNN)"
+  }
+}

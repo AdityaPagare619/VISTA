@@ -126,21 +126,13 @@ class CloudVision:
     # ── Client initialisation ────────────────────────────────────
 
     def _init_client(self) -> None:
-        """Configure the Gemini SDK client."""
+        """Client init (now just verifies requests is available)."""
         try:
-            import google.generativeai as genai  # type: ignore[import-untyped]
-
-            genai.configure(api_key=self._api_key)
-            self._client = genai.GenerativeModel(self._model)
-            logger.success(f"Gemini client initialised | model={self._model}")
-
+            import requests
+            self._client = requests
+            logger.success(f"Gemini REST client initialised | model={self._model}")
         except ImportError:
-            logger.error(
-                "google-generativeai not installed — CloudVision unavailable"
-            )
-            self._client = None
-        except Exception as exc:
-            logger.error(f"Failed to initialise Gemini client: {exc}")
+            logger.error("requests not installed — CloudVision unavailable")
             self._client = None
 
     # ══════════════════════════════════════════════════════════════
@@ -148,28 +140,17 @@ class CloudVision:
     # ══════════════════════════════════════════════════════════════
 
     def analyze_scene(self, image_bytes: bytes) -> Dict[str, Any]:
-        """Analyse a general driving scene image.
-
-        Args:
-            image_bytes: JPEG or PNG image as raw bytes.
-
-        Returns:
-            Dict with keys: ``scene_type``, ``vehicles``, ``hazards``,
-            ``road_condition``, ``safety_rating``, ``hazard_score``,
-            ``description``.  On error, also contains ``"error"`` key.
-
-            Fallback default on total failure:
-            ``{"scene_type": "unknown", "hazard_score": 0, "safety_rating": 50, "error": "..."}``.
-        """
+        """Analyse a general driving scene image."""
         if not self._api_key or self._client is None:
             return self._error_result("CloudVision client not initialised (API key missing?)")
 
         try:
-            # Build the multimodal request
-            image_part = {"mime_type": "image/jpeg", "data": image_bytes}
+            import base64
+            img_b64 = base64.b64encode(image_bytes).decode("utf-8")
+            image_part = {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
             response = self._call_with_retry(
                 prompt=self._SCENE_PROMPT,
-                image=image_part,
+                image_part=image_part,
             )
 
             if response is None:
@@ -183,23 +164,17 @@ class CloudVision:
             return self._error_result(str(exc))
 
     def analyze_crash_scene(self, image_bytes: bytes) -> str:
-        """Analyse a potential crash scene image in detail.
-
-        Args:
-            image_bytes: JPEG or PNG image as raw bytes.
-
-        Returns:
-            A detailed crash analysis report as plain text.
-            On error, returns ``"Error: <message>"``.
-        """
+        """Analyse a potential crash scene image in detail."""
         if not self._api_key or self._client is None:
             return "Error: CloudVision client not initialised (API key missing?)"
 
         try:
-            image_part = {"mime_type": "image/jpeg", "data": image_bytes}
+            import base64
+            img_b64 = base64.b64encode(image_bytes).decode("utf-8")
+            image_part = {"inline_data": {"mime_type": "image/jpeg", "data": img_b64}}
             response = self._call_with_retry(
                 prompt=self._CRASH_PROMPT,
-                image=image_part,
+                image_part=image_part,
             )
 
             if response is None:
@@ -211,55 +186,85 @@ class CloudVision:
             logger.error(f"analyze_crash_scene failed: {exc}")
             return f"Error: {exc}"
 
+    def ask_gemini(self, prompt: str) -> str:
+        """General purpose text-only query to Gemini API.
+        
+        Args:
+            prompt: Text prompt to send to Gemini.
+            
+        Returns:
+            Response text or Error string.
+        """
+        if not self._api_key or self._client is None:
+            return "Error: CloudVision client not initialised (API key missing?)"
+
+        try:
+            response = self._call_with_retry(prompt=prompt)
+            if response is None:
+                return "Error: No response from Gemini API after retries"
+            return str(response).strip()
+        except Exception as exc:
+            logger.error(f"ask_gemini failed: {exc}")
+            return f"Error: {exc}"
+
     # ══════════════════════════════════════════════════════════════
     # Internal: API calling
     # ══════════════════════════════════════════════════════════════
 
     def _call_with_retry(
-        self, prompt: str, image: Dict[str, Any]
+        self, prompt: str, image_part: Optional[Dict[str, Any]] = None
     ) -> Optional[str]:
-        """Call Gemini with exponential backoff retry.
-
-        Returns the response text on success, ``None`` on total failure.
-        """
+        """Call Gemini REST API with exponential backoff retry."""
         last_error: Optional[Exception] = None
+        
+        # Build URL
+        model_name = "gemini-flash-latest"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self._api_key}"
+        headers = {
+            "Content-Type": "application/json"
+        }
 
         for attempt in range(1, self._max_retries + 1):
             try:
-                # Build content: [prompt, image]
-                contents = [prompt, image]
-
-                # Call Gemini
-                result = self._client.generate_content(
-                    contents=contents,
-                    generation_config={
+                # Build payload
+                parts = [{"text": prompt}]
+                if image_part:
+                    parts.append(image_part)
+                    
+                payload = {
+                    "contents": [{"parts": parts}],
+                    "generationConfig": {
                         "temperature": 0.2,
-                        "top_p": 0.8,
-                        "top_k": 40,
-                    },
-                    request_options={"timeout": self._timeout * 1000},  # ms
-                )
+                        "topP": 0.8,
+                        "topK": 40
+                    }
+                }
 
-                if result and result.text:
-                    return result.text
-
-                # Empty response
-                logger.warning(
-                    f"Gemini returned empty response (attempt {attempt}/{self._max_retries})"
-                )
-                last_error = ValueError("Empty response from Gemini")
+                resp = self._client.post(url, headers=headers, json=payload, timeout=self._timeout)
+                
+                if resp.status_code == 200:
+                    data = resp.json()
+                    # Extract text from response
+                    try:
+                        text = data["candidates"][0]["content"]["parts"][0]["text"]
+                        return text
+                    except (KeyError, IndexError) as e:
+                        logger.warning(f"Failed to parse Gemini JSON structure: {e}")
+                        last_error = ValueError("Invalid JSON structure returned by Gemini")
+                else:
+                    logger.warning(f"Gemini API returned {resp.status_code}: {resp.text[:200]}")
+                    last_error = ValueError(f"HTTP {resp.status_code}")
+                    
+                    # Don't retry on auth errors
+                    if resp.status_code in (401, 403):
+                        logger.error("Auth error — not retrying")
+                        return None
 
             except Exception as exc:
                 logger.warning(
                     f"Gemini API call failed (attempt {attempt}/{self._max_retries}): {exc}"
                 )
                 last_error = exc
-
-                # Don't retry on auth errors
-                error_str = str(exc).lower()
-                if any(kw in error_str for kw in ("401", "403", "unauthorized", "invalid key")):
-                    logger.error(f"Auth error — not retrying: {exc}")
-                    return None
 
             # Exponential backoff
             if attempt < self._max_retries:

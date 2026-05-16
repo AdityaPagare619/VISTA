@@ -4,11 +4,12 @@ VISTA Hardware Abstraction Layer (HAL)
 Provides unified interfaces for all vehicle sensors and actuators.
 
 Exports:
-    OBDReader    — ELM327 OBD-II data reader
-    IMUReader    — MPU6050 6-axis inertial sensor
-    AudioCapture — USB microphone audio pipeline
-    CameraCapture— Pi Camera v3 image capture
-    GPIOManager  — GPIO abstraction (buzzer, ESP32 comms)
+    OBDReader     — ELM327 OBD-II data reader
+    IMUReader     — MPU6050 6-axis inertial sensor
+    AudioCapture  — USB microphone audio pipeline
+    CameraCapture — Pi Camera v3 image capture
+    GPIOManager   — GPIO abstraction (buzzer, ESP32 comms)
+    PowerManager  — MOSFET power switch lifecycle (v3.0)
 """
 
 from __future__ import annotations
@@ -87,6 +88,7 @@ from .imu_reader import IMUReader          # noqa: E402
 from .audio_capture import AudioCapture    # noqa: E402
 from .camera_capture import CameraCapture  # noqa: E402
 from .gpio_manager import GPIOManager      # noqa: E402
+from .power_manager import PowerManager    # noqa: E402
 
 __all__ = [
     "OBDReader",
@@ -94,4 +96,5 @@ __all__ = [
     "AudioCapture",
     "CameraCapture",
     "GPIOManager",
+    "PowerManager",
 ]

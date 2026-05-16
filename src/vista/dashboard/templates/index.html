@@ -3,448 +3,230 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VISTA Dashboard</title>
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"
-            integrity="sha384-8yAY4Tt4dv12V7PCEmlk5epnIXM9LQW9x3b2pQNjhxJWY1wM4Bq+x3fXQaNQNy0"
-            crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
-            integrity="sha384-X9UJqFQ1Xe4lSXKDvwwB0KJVQHHGW7T02VFC1NnG6FYMbI6FSwqYfjXfKM3HmKX"
-            crossorigin="anonymous"></script>
-    <style>
-        :root {
-            --bg-primary: #0d1117;
-            --bg-secondary: #161b22;
-            --bg-card: #1c2333;
-            --border: #30363d;
-            --text-primary: #e6edf3;
-            --text-secondary: #8b949e;
-            --green: #3fb950;
-            --green-dim: #2ea043;
-            --red: #f85149;
-            --orange: #d2991d;
-            --blue: #58a6ff;
-            --purple: #bc8cff;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            min-height: 100vh;
-        }
-
-        /* ── Header ─────────────────────────────────── */
-        .header {
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border);
-            padding: 12px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-        .header h1 {
-            font-size: 20px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            color: var(--green);
-        }
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .status-badge.online {
-            background: rgba(63, 185, 80, 0.15);
-            color: var(--green);
-            border: 1px solid rgba(63, 185, 80, 0.3);
-        }
-        .status-badge.offline {
-            background: rgba(248, 81, 73, 0.15);
-            color: var(--red);
-            border: 1px solid rgba(248, 81, 73, 0.3);
-        }
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: currentColor;
-        }
-        .header-time {
-            font-size: 13px;
-            color: var(--text-secondary);
-        }
-
-        /* ── Grid Layout ────────────────────────────── */
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px 24px;
-        }
-
-        /* ── Cards Row ──────────────────────────────── */
-        .cards-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 16px;
-        }
-        .card-label {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--text-secondary);
-            margin-bottom: 6px;
-        }
-        .card-value {
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--green);
-            line-height: 1.2;
-        }
-        .card-unit {
-            font-size: 13px;
-            color: var(--text-secondary);
-            font-weight: 400;
-            margin-left: 4px;
-        }
-        .card-sub {
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-top: 4px;
-        }
-
-        /* ── Middle Row ──────────────────────────────── */
-        .middle-row {
-            display: grid;
-            grid-template-columns: 1fr 300px;
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-        .chart-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 16px;
-            min-height: 280px;
-            position: relative;
-        }
-        .chart-card h3 {
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-secondary);
-            margin-bottom: 12px;
-        }
-        .chart-card canvas {
-            width: 100% !important;
-            height: 100% !important;
-            max-height: 250px;
-        }
-
-        /* ── Side Panel ──────────────────────────────── */
-        .side-panel {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-        .audio-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 16px;
-            text-align: center;
-        }
-        .audio-card h3 {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--text-secondary);
-            margin-bottom: 10px;
-        }
-        .audio-label {
-            font-size: 22px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 4px;
-        }
-        .audio-label.normal { color: var(--green); }
-        .audio-label.horn { color: var(--orange); }
-        .audio-label.siren { color: var(--red); }
-        .audio-label.crash { color: var(--red); }
-        .audio-conf {
-            font-size: 12px;
-            color: var(--text-secondary);
-        }
-
-        /* ── Alerts Panel ────────────────────────────── */
-        .alerts-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 16px;
-            flex: 1;
-            overflow-y: auto;
-            max-height: 340px;
-        }
-        .alerts-card h3 {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--text-secondary);
-            margin-bottom: 10px;
-        }
-        .alert-item {
-            padding: 8px 10px;
-            border-left: 3px solid var(--border);
-            margin-bottom: 8px;
-            border-radius: 0 4px 4px 0;
-            background: var(--bg-secondary);
-            animation: slideIn 0.3s ease;
-        }
-        .alert-item.crash { border-left-color: var(--red); }
-        .alert-item.harsh_braking { border-left-color: var(--orange); }
-        .alert-item.horn_detected { border-left-color: var(--orange); }
-        .alert-item.siren_detected { border-left-color: var(--red); }
-        .alert-item.rapid_acceleration { border-left-color: var(--orange); }
-        .alert-item.crash_warning { border-left-color: var(--orange); }
-        .alert-type {
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 2px;
-        }
-        .alert-meta {
-            font-size: 11px;
-            color: var(--text-secondary);
-        }
-        .no-alerts {
-            color: var(--text-secondary);
-            font-size: 13px;
-            text-align: center;
-            padding: 20px 0;
-        }
-
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-10px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-
-        /* ── Footer ──────────────────────────────────── */
-        .footer {
-            background: var(--bg-secondary);
-            border-top: 1px solid var(--border);
-            padding: 12px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 12px;
-            color: var(--text-secondary);
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            z-index: 100;
-        }
-        .footer-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .footer-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-        }
-        .footer-dot.good { background: var(--green); }
-        .footer-dot.warn { background: var(--orange); }
-        .footer-dot.bad { background: var(--red); }
-
-        /* ── Toast ───────────────────────────────────── */
-        .toast-container {
-            position: fixed;
-            top: 70px;
-            right: 20px;
-            z-index: 999;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .toast {
-            background: var(--red);
-            color: white;
-            padding: 12px 18px;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 600;
-            box-shadow: 0 4px 20px rgba(248, 81, 73, 0.4);
-            animation: toastIn 0.3s ease, toastOut 0.3s ease 4.7s forwards;
-            max-width: 340px;
-        }
-        @keyframes toastIn {
-            from { opacity: 0; transform: translateX(100px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes toastOut {
-            from { opacity: 1; }
-            to { opacity: 0; }
-        }
-
-        /* ── Demo Button ─────────────────────────────── */
-        .demo-btn {
-            background: transparent;
-            border: 1px solid var(--red);
-            color: var(--red);
-            padding: 6px 14px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            cursor: pointer;
-            font-family: inherit;
-            transition: all 0.2s;
-        }
-        .demo-btn:hover {
-            background: rgba(248, 81, 73, 0.15);
-        }
-
-        /* ── Responsive ──────────────────────────────── */
-        @media (max-width: 900px) {
-            .cards-row { grid-template-columns: repeat(2, 1fr); }
-            .middle-row { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 500px) {
-            .cards-row { grid-template-columns: 1fr; }
-            .header h1 { font-size: 16px; }
-        }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: var(--bg-primary); }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-    </style>
+    <title>VISTA — Enterprise Intelligence Console</title>
+    <meta name="description" content="Vehicle Intelligence & Safety Telematics Architecture — Real-time telemetry, crash detection, and fleet health monitoring">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
 
-<!-- ── Header ──────────────────────────────────────────────────── -->
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+<div class="flash-overlay" id="flashOverlay"></div>
+
+<!-- ═══ Header ═══ -->
 <header class="header">
     <div class="header-left">
-        <h1>&#9654; VISTA Dashboard</h1>
-        <span class="status-badge online" id="statusBadge">
-            <span class="status-dot"></span>
-            <span id="statusText">ONLINE</span>
-        </span>
+        <div>
+            <div class="logo">VISTA</div>
+            <div class="logo-sub">Vehicle Intelligence & Safety Telematics v4.0</div>
+        </div>
     </div>
-    <div>
-        <span class="header-time" id="clock">--:--:--</span>
+    <div class="header-right">
+        <div class="status-badge online" id="systemStatus">
+            <div class="pulse-dot"></div>
+            <span id="statusText">PIPELINE ONLINE</span>
+        </div>
+        <div class="clock mono" id="clock">--:--:--</div>
     </div>
 </header>
 
-<!-- ── Main Content ─────────────────────────────────────────────── -->
-<div class="container" style="padding-bottom: 60px;">
+<!-- ═══ Dashboard ═══ -->
+<div class="dashboard">
 
-    <!-- OBD Cards -->
-    <div class="cards-row">
-        <div class="card">
-            <div class="card-label">&#9873; Speed</div>
-            <div class="card-value" id="obdSpeed">--</div>
-            <div class="card-unit">km/h</div>
+    <!-- ─── Row 1: Metric Cards ─── -->
+    <div class="metrics-strip">
+        <div class="glass metric-card green" id="card-ekf">
+            <div class="metric-label">EKF Velocity</div>
+            <div class="metric-value mono m-green" id="val-ekf">0.0<span class="metric-unit">km/h</span></div>
+            <div class="metric-sub">OBD + IMU Fusion</div>
         </div>
-        <div class="card">
-            <div class="card-label">&#9881; RPM</div>
-            <div class="card-value" id="obdRPM">--</div>
-            <div class="card-unit">rpm</div>
+        <div class="glass metric-card blue" id="card-imu">
+            <div class="metric-label">IMU Kinematics</div>
+            <div class="metric-value mono m-blue" id="val-imu">1.00<span class="metric-unit">G</span></div>
+            <div class="metric-sub">MPU6050 ±16g</div>
         </div>
-        <div class="card">
-            <div class="card-label">&#9776; Throttle</div>
-            <div class="card-value" id="obdThrottle">--</div>
-            <div class="card-unit">%</div>
+        <div class="glass metric-card yellow" id="card-audio">
+            <div class="metric-label">YAMNet Acoustic</div>
+            <div class="metric-value mono m-yellow" id="val-audio">NORMAL</div>
+            <div class="metric-sub">521-class TFLite</div>
         </div>
-        <div class="card">
-            <div class="card-label">&#9832; Engine Temp</div>
-            <div class="card-value" id="obdCoolant">--</div>
-            <div class="card-unit">&deg;C</div>
+        <div class="glass metric-card green" id="card-health">
+            <div class="metric-label">Detection Capacity</div>
+            <div class="metric-value mono m-green" id="val-health">100<span class="metric-unit">%</span></div>
+            <div class="metric-sub">All Sensors Live</div>
+        </div>
+        <div class="glass metric-card blue" id="card-nvh">
+            <div class="metric-label">NVH Health</div>
+            <div class="metric-value mono m-blue" id="nvh-score">--.-<span class="metric-unit">%</span></div>
+            <div class="metric-sub">Drivetrain FFT</div>
+        </div>
+        <div class="glass metric-card purple" id="card-security">
+            <div class="metric-label">Security</div>
+            <div class="metric-value mono m-green" id="val-security">ARMED</div>
+            <div class="metric-sub">Ghost Key TSA</div>
         </div>
     </div>
 
-    <!-- Chart + Side Panel -->
-    <div class="middle-row">
-        <div class="chart-card">
-            <h3>&#9670; Speed History (60s)</h3>
-            <canvas id="speedChart"></canvas>
+    <!-- ─── Row 2: Velocity Chart ─── -->
+    <div class="glass chart-panel">
+        <div class="chart-header">
+            <div class="chart-title">Temporal Velocity Tracking — EKF vs Raw OBD</div>
+            <div class="chart-legend">
+                <div class="legend-item"><div class="legend-dot" style="background:var(--accent-green)"></div>EKF Fused</div>
+                <div class="legend-item"><div class="legend-dot" style="background:rgba(255,255,255,0.2)"></div>Raw OBD</div>
+            </div>
+        </div>
+        <div class="chart-wrap"><canvas id="velocityChart"></canvas></div>
+    </div>
+
+    <!-- ─── Side Column ─── -->
+    <div class="side-col">
+        <!-- Scenarios -->
+        <div class="glass" style="padding:18px">
+            <div class="panel-title">Physics Engine Scenarios</div>
+            <button class="scenario-btn btn-dropout" onclick="triggerScenario('dropout')">
+                <span>📡 OBD-II Sensor Dropout</span><span class="btn-icon">→</span>
+            </button>
+            <button class="scenario-btn btn-chaos" onclick="triggerScenario('chaos')">
+                <span>🕳️ Indian Road Chaos</span><span class="btn-icon">→</span>
+            </button>
+            <button class="scenario-btn btn-crash" onclick="triggerScenario('crash')">
+                <span>💥 Severe Collision</span><span class="btn-icon">→</span>
+            </button>
+            <button class="scenario-btn btn-theft" onclick="triggerScenario('can_bus_injection')">
+                <span>🔓 CAN-Bus Injection Attack</span><span class="btn-icon">→</span>
+            </button>
         </div>
 
-        <div class="side-panel">
-            <!-- Audio Classification -->
-            <div class="audio-card">
-                <h3>&#9834; Audio Classification</h3>
-                <div class="audio-label normal" id="audioLabel">NORMAL</div>
-                <div class="audio-conf" id="audioConf">Confidence: --%</div>
-                <div style="margin-top: 10px;">
-                    <button class="demo-btn" id="demoCrashBtn">&#9888; Trigger Crash Demo</button>
+        <!-- Sensor Health Rings -->
+        <div class="glass" style="padding:18px">
+            <div class="panel-title">Sensor Liveness</div>
+            <div id="sensorHealth">
+                <div class="health-ring-wrap">
+                    <div class="health-ring" id="ring-obd">
+                        <svg width="48" height="48" viewBox="0 0 48 48">
+                            <circle class="health-ring-bg" cx="24" cy="24" r="20"/>
+                            <circle class="health-ring-fill" cx="24" cy="24" r="20"
+                                stroke="var(--accent-green)" stroke-dasharray="125.6" stroke-dashoffset="0"/>
+                        </svg>
+                        <span class="health-ring-text m-green">●</span>
+                    </div>
+                    <div><div style="font-size:12px;font-weight:600">OBD-II</div><div class="health-ring-label">ELM327 · 2Hz</div></div>
+                </div>
+                <div class="health-ring-wrap">
+                    <div class="health-ring" id="ring-imu">
+                        <svg width="48" height="48" viewBox="0 0 48 48">
+                            <circle class="health-ring-bg" cx="24" cy="24" r="20"/>
+                            <circle class="health-ring-fill" cx="24" cy="24" r="20"
+                                stroke="var(--accent-green)" stroke-dasharray="125.6" stroke-dashoffset="0"/>
+                        </svg>
+                        <span class="health-ring-text m-green">●</span>
+                    </div>
+                    <div><div style="font-size:12px;font-weight:600">IMU</div><div class="health-ring-label">MPU6050 · 100Hz</div></div>
+                </div>
+                <div class="health-ring-wrap">
+                    <div class="health-ring" id="ring-audio">
+                        <svg width="48" height="48" viewBox="0 0 48 48">
+                            <circle class="health-ring-bg" cx="24" cy="24" r="20"/>
+                            <circle class="health-ring-fill" cx="24" cy="24" r="20"
+                                stroke="var(--accent-green)" stroke-dasharray="125.6" stroke-dashoffset="0"/>
+                        </svg>
+                        <span class="health-ring-text m-green">●</span>
+                    </div>
+                    <div><div style="font-size:12px;font-weight:600">Audio</div><div class="health-ring-label">YAMNet · 1Hz</div></div>
+                </div>
+                <div class="health-ring-wrap">
+                    <div class="health-ring" id="ring-cam">
+                        <svg width="48" height="48" viewBox="0 0 48 48">
+                            <circle class="health-ring-bg" cx="24" cy="24" r="20"/>
+                            <circle class="health-ring-fill" cx="24" cy="24" r="20"
+                                stroke="var(--accent-blue)" stroke-dasharray="125.6" stroke-dashoffset="62.8"/>
+                        </svg>
+                        <span class="health-ring-text m-blue">◐</span>
+                    </div>
+                    <div><div style="font-size:12px;font-weight:600">Camera</div><div class="health-ring-label">Pi Cam v3 · 5min</div></div>
                 </div>
             </div>
+        </div>
 
-            <!-- Alerts -->
-            <div class="alerts-card" id="alertsPanel">
-                <h3>&#9888; Recent Alerts</h3>
-                <div id="alertsList">
-                    <div class="no-alerts">No alerts yet</div>
-                </div>
+        <!-- Alert Feed -->
+        <div class="glass" style="padding:18px; flex:1; display:flex; flex-direction:column;">
+            <div class="panel-title">Event Intelligence Log</div>
+            <div class="alert-feed" id="alertFeed"></div>
+        </div>
+    </div>
+
+    <!-- ─── Row 3: Architecture Flow ─── -->
+    <div class="glass arch-panel">
+        <div class="panel-title">System Architecture — Live Data Flow</div>
+        <div class="arch-flow">
+            <div class="arch-node active" id="node-sensors">
+                <div class="arch-node-icon">📡</div>
+                <div class="arch-node-label">Sensors</div>
+                <div class="arch-node-status">OBD·IMU·MIC</div>
+            </div>
+            <div class="arch-arrow">→→→</div>
+            <div class="arch-node active" id="node-hal">
+                <div class="arch-node-icon">⚙️</div>
+                <div class="arch-node-label">HAL</div>
+                <div class="arch-node-status">6 DRIVERS</div>
+            </div>
+            <div class="arch-arrow">→→→</div>
+            <div class="arch-node active" id="node-intel">
+                <div class="arch-node-icon">🧠</div>
+                <div class="arch-node-label">Intelligence</div>
+                <div class="arch-node-status">EKF·CRASH·TSA</div>
+            </div>
+            <div class="arch-arrow">→→→</div>
+            <div class="arch-node active" id="node-decision">
+                <div class="arch-node-icon">⚡</div>
+                <div class="arch-node-label">Decision</div>
+                <div class="arch-node-status">CONFIDENCE</div>
+            </div>
+            <div class="arch-arrow">→→→</div>
+            <div class="arch-node active" id="node-comms">
+                <div class="arch-node-icon">📱</div>
+                <div class="arch-node-label">Comms</div>
+                <div class="arch-node-status">TG·MQTT·BLE</div>
+            </div>
+            <div class="arch-arrow">→→→</div>
+            <div class="arch-node active" id="node-storage">
+                <div class="arch-node-icon">💾</div>
+                <div class="arch-node-label">Storage</div>
+                <div class="arch-node-status">SQLite·Influx</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Row 4: NVH Enterprise Panel ─── -->
+    <div class="glass nvh-panel">
+        <div class="chart-header">
+            <div class="chart-title" style="color:var(--accent-blue)">Enterprise Fleet Health — Predictive NVH Analytics</div>
+            <div class="status-badge online" style="padding:3px 10px;font-size:10px">B2B API</div>
+        </div>
+        <div class="nvh-grid">
+            <div>
+                <div class="nvh-metric-label">NVH Health Score</div>
+                <div class="metric-value mono m-blue" id="nvh-score-lg" style="font-size:32px">--.-<span class="metric-unit">%</span></div>
+                <div class="nvh-bar-bg"><div class="nvh-bar-fill" id="nvh-bar" style="width:0%; background:var(--accent-blue)"></div></div>
+            </div>
+            <div>
+                <div class="nvh-metric-label">Reconstruction Error</div>
+                <div class="metric-value mono" id="nvh-error" style="font-size:24px">--.---</div>
+                <div class="metric-sub" style="margin-top:8px">3-Sigma Threshold</div>
+            </div>
+            <div>
+                <div class="nvh-metric-label">Anomaly Band</div>
+                <div class="mono m-green" id="nvh-band" style="font-size:13px;margin-top:4px">Nominal</div>
+                <div class="metric-sub" style="margin-top:8px">Acoustic + IMU Z-axis</div>
             </div>
         </div>
     </div>
 
 </div>
 
-<!-- ── Footer ───────────────────────────────────────────────────── -->
-<footer class="footer">
-    <div class="footer-item">
-        <span>&#9201; Uptime:</span>
-        <span id="footerUptime">--</span>
-    </div>
-    <div class="footer-item">
-        <span>&#9742; WiFi:</span>
-        <span class="footer-dot good" id="wifiDot"></span>
-        <span id="footerWifi">--</span>
-    </div>
-    <div class="footer-item">
-        <span>&#9889; Battery:</span>
-        <span id="footerBattery">--</span>
-    </div>
-    <div class="footer-item">
-        <span id="footerMode">MODE: --</span>
-    </div>
-</footer>
-
-<!-- ── Toast Container ──────────────────────────────────────────── -->
-<div class="toast-container" id="toastContainer"></div>
-
-<!-- ── Dashboard JS ─────────────────────────────────────────────── -->
 <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
 </body>
 </html>

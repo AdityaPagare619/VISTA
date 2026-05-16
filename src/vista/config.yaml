@@ -1,6 +1,6 @@
-# VISTA - Vehicle Intelligence & Safety Telematics Architecture
+# VISTA — Vehicle Intelligence & Safety Telematics Architecture
 # Configuration File
-# Version 2.1 - Smart Engineering
+# Version 3.0 — Physics-Verified Ground-Truth Design
 
 device:
   id: "VISTA-0001"
@@ -11,51 +11,76 @@ device:
 sensors:
   obd:
     enabled: true
-    port: "/dev/ttyUSB0"          # USB ELM327 adapter
+    port: "/dev/ttyUSB0"            # USB ELM327 adapter
     baudrate: 38400
-    poll_interval: 0.1            # 10 Hz
+    # v3.0: HONEST rate. Real ELM327 does 2-3 full PID cycles/sec.
+    # Each PID = ~120ms serial round-trip. 4 PIDs × 120ms = ~500ms.
+    poll_interval: 0.5              # 2 Hz (honest, measured)
+    priority_pids:
+      - speed
+      - rpm
+      - throttle
+      - engine_load
 
   imu:
     enabled: true
-    bus: 1                        # I2C bus
-    address: 0x68                 # MPU6050 default
-    sample_rate: 100              # Hz
-    accel_range: 8                # ±8g
-    gyro_range: 500               # ±500°/s
+    bus: 1                          # I2C bus
+    address: 0x68                   # MPU6050 default
+    sample_rate: 100                # Hz
+    # v3.0: MAX range. Real crashes produce 20-70g.
+    # MPU6050 saturates at ±16g — saturation IS the signal.
+    accel_range: 16                 # ±16g (maximum)
+    gyro_range: 500                 # ±500°/s
+    saturation_threshold: 15.5      # g — if |accel| > this, sensor is clipping
 
   audio:
     enabled: true
-    device_index: 0               # USB microphone
-    sample_rate: 16000            # Hz
-    window_seconds: 1.0           # Classification window
-    channels: 1                   # Mono
+    device_index: 0                 # USB microphone
+    sample_rate: 16000              # Hz (required by YAMNet)
+    window_seconds: 1.0             # Classification window
+    channels: 1                     # Mono
     model_path: "models/audio_cnn.tflite"
 
   camera:
     enabled: true
-    resolution: [2304, 1296]      # ~3MP for API
-    quality: 85                   # JPEG quality (1-100)
-    burst_count: 5                # Frames for crash capture
+    resolution: [2304, 1296]        # ~3MP for API
+    quality: 85                     # JPEG quality (1-100)
+    burst_count: 5                  # Frames for crash capture
     burst_interval_ms: 100
 
-# ── Fusion Engine ─────────────────────────────────────────────
+# ── Velocity EKF (v3.0 — renamed from "fusion") ─────────────
 
-fusion:
-  dt: 0.1                         # Time step (seconds)
-  process_noise: [0.1, 0.01, 0.01]  # Q matrix diagonal
-  measurement_noise: [1.0, 0.5, 0.5] # R matrix diagonal
+velocity_ekf:
+  # v3.0: 2-state filter [velocity, accel_bias].
+  # NOT used for crash detection (crashes violate EKF assumptions).
+  dt: 0.4                            # Matches OBD poll rate (~2.5Hz)
+  process_noise: [0.5, 0.01]         # [velocity drift, bias drift]
+  measurement_noise: [0.08]          # (1 km/h / 3.6)² ≈ 0.08 (m/s)²
+
+# ── Crash Detection (v3.0 — separated from EKF) ─────────────
+
+crash_detection:
+  jerk_threshold: 5.0               # g/s — triggers potential crash
+  confirm_threshold: 0.65           # Weighted confidence > this = CRASH
+  warning_threshold: 0.40           # Weighted confidence > this = WARNING
+  sensor_weights:
+    imu: 0.45                       # Primary — fastest, most reliable
+    audio: 0.30                     # Secondary — near-real-time
+    obd: 0.15                       # Async corroborator
+    vision: 0.10                    # Cloud enrichment (optional)
 
 # ── Decision Engine ───────────────────────────────────────────
 
 decision:
   crash:
-    alert_threshold: 0.65         # Confidence > this = alert
-    warning_threshold: 0.40       # Confidence > this = warning
+    alert_threshold: 0.65
+    warning_threshold: 0.40
+    # v3.0: Updated weights — IMU is primary, OBD is async corroborator
     sensor_weights:
-      imu_jerk: 0.35
-      obd_throttle: 0.25
-      audio: 0.25
-      vision: 0.15
+      imu_jerk: 0.45
+      audio: 0.30
+      obd_throttle: 0.15
+      vision: 0.10
 
   theft:
     alert_threshold: 0.70
@@ -66,25 +91,29 @@ decision:
 
   driver_behavior:
     harsh_braking_jerk_threshold: 3.0   # g/s
-    rapid_accel_threshold: 0.5         # g
+    rapid_accel_threshold: 0.5          # g
     analysis_interval_hours: 24
 
 # ── Cloud Services ────────────────────────────────────────────
 
 cloud:
   vision:
-    provider: "gemini"            # gemini | openai
+    provider: "gemini"
     model: "gemini-1.5-flash"
     api_key_env: "GEMINI_API_KEY"
     max_retries: 3
     timeout_seconds: 10
 
   alerts:
+    # v3.0: Telegram is PRIMARY (free, unlimited, developer-friendly)
     telegram:
       enabled: true
       bot_token_env: "TELEGRAM_BOT_TOKEN"
-      # Chat ID auto-captured on first /start command
+      chat_id_env: "TELEGRAM_CHAT_ID"
       chat_id_file: "data/telegram_chat_id.txt"
+    # WhatsApp: optional paid upgrade, NOT implemented for demo
+    whatsapp:
+      enabled: false
 
 # ── Communication ─────────────────────────────────────────────
 
@@ -103,11 +132,15 @@ communication:
   wifi:
     hotspot_ssid: "VISTA-Demo"
     hotspot_password: "vista1234"
-    fallback_network: ""          # Connect to known WiFi if available
+    fallback_network: ""
 
-# ── Storage ───────────────────────────────────────────────────
+# ── Storage (v3.0: USB SSD at /mnt/vista-data) ───────────────
 
 storage:
+  # v3.0: All data on USB SSD to prevent SD card flash-wear death
+  data_mount: "/mnt/vista-data"
+  fallback_local: "data"            # Fallback if SSD not mounted
+
   influxdb:
     host: "localhost"
     port: 8086
@@ -117,24 +150,40 @@ storage:
     retention_days: 30
 
   sqlite:
-    path: "data/events.db"
+    # v3.0: DB on SSD (fallback: local data/events.db)
+    path: "/mnt/vista-data/events.db"
+    fallback_path: "data/events.db"
 
   images:
-    path: "data/images"
+    # v3.0: Images on SSD
+    path: "/mnt/vista-data/images"
+    fallback_path: "data/images"
     max_size_mb: 500
     retention_days: 30
 
 # ── System ────────────────────────────────────────────────────
 
 system:
-  log_level: "INFO"               # DEBUG | INFO | WARNING | ERROR
+  log_level: "INFO"
   log_path: "logs/vista.log"
-  demo_mode: false                # Enable for classroom demos
+  demo_mode: false
+  # v3.0: Safety disclaimer in every alert
+  safety_disclaimer: "⚠️ VISTA is a research prototype. Call emergency services if needed."
+
+# ── Power Management (v3.0 — MOSFET control) ─────────────────
+
+power:
+  mosfet_gpio: 7                    # ESP32 GPIO → NPN → MOSFET gate
+  heartbeat_gpio: 6                 # Pi GPIO6 toggles at 1Hz when alive
+  low_battery_voltage: 11.8         # V — ESP32 blocks Pi boot below this
+  thermal_block_temp: 55            # °C — ESP32 blocks Pi boot above this
+  shutdown_signal_duration: 3.0     # seconds — Pi holds GPIO6 HIGH = ready
+  heartbeat_timeout: 30             # seconds — no toggle = Pi dead
 
 # ── ESP32 ─────────────────────────────────────────────────────
 
 esp32:
-  wake_gpio: 5                    # Pi GPIO → ESP32 WAKE
-  status_gpio: 6                  # Pi GPIO ← ESP32 STATUS
-  battery_low_voltage: 11.8       # Stop waking Pi below this
-  pir_timeout_minutes: 5          # Pi sleep after no motion
+  wake_gpio: 5
+  status_gpio: 6
+  battery_low_voltage: 11.8
+  pir_timeout_minutes: 5

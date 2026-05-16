@@ -1,370 +1,342 @@
 /**
- * VISTA Dashboard — Frontend JavaScript
- * ======================================
- * Handles SocketIO connection, real-time telemetry updates,
- * Chart.js speed chart, toast notifications for alerts,
- * and the demo crash trigger button.
+ * VISTA Enterprise Dashboard v4.0
+ * ================================
+ * Real-time telemetry, animated architecture flow,
+ * sensor health rings, NVH analytics, and demo scenarios.
  */
 
-// ── Socket.IO Connection ──────────────────────────────────────────
+const socket = io({ transports: ["websocket", "polling"] });
 
-const socket = io({
-    transports: ["websocket", "polling"],
-    reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-});
-
-socket.on("connect", () => {
-    console.log("[VISTA] SocketIO connected");
-    updateStatusBadge(true);
-    fetchInitialState();
-});
-
-socket.on("disconnect", () => {
-    console.log("[VISTA] SocketIO disconnected");
-    updateStatusBadge(false);
-});
-
-socket.on("connect_error", (err) => {
-    console.warn("[VISTA] SocketIO error:", err.message);
-    updateStatusBadge(false);
-});
-
-// ── Telemetry Updates (pushed every 1s) ───────────────────────────
-
-socket.on("telemetry", (data) => {
-    updateOBDCards(data);
-    updateAudioClassification(data);
-    updateSpeedChart(data);
-});
-
-// ── Alert Events ──────────────────────────────────────────────────
-
-socket.on("alert", (event) => {
-    console.log("[VISTA] Alert received:", event);
-    showToast(event);
-    addAlertToList(event);
-});
-
-// ── Chart.js Setup ────────────────────────────────────────────────
-
-const MAX_CHART_POINTS = 60;
-const chartLabels = [];
-const chartData = [];
-
-// Pre-fill with zeros so the chart starts clean
-for (let i = 0; i < MAX_CHART_POINTS; i++) {
-    chartLabels.push("");
-    chartData.push(null);
+// ── Clock ─────────────────────────────────────────────────────────
+function updateClock() {
+    const now = new Date();
+    const t = now.toLocaleTimeString([], { hour12: false });
+    const ms = now.getMilliseconds().toString().padStart(3, "0");
+    document.getElementById("clock").textContent = `${t}.${ms}`;
 }
+setInterval(updateClock, 100);
+updateClock();
 
-const speedCtx = document.getElementById("speedChart").getContext("2d");
-const speedChart = new Chart(speedCtx, {
+// ── Chart.js ──────────────────────────────────────────────────────
+const MAX_PTS = 120;
+const ekfData = Array(MAX_PTS).fill(null);
+const obdData = Array(MAX_PTS).fill(null);
+const labels = Array(MAX_PTS).fill("");
+
+const ctx = document.getElementById("velocityChart").getContext("2d");
+
+// Gradient fill for EKF line
+const ekfGrad = ctx.createLinearGradient(0, 0, 0, 280);
+ekfGrad.addColorStop(0, "rgba(0, 230, 118, 0.15)");
+ekfGrad.addColorStop(1, "rgba(0, 230, 118, 0)");
+
+const velocityChart = new Chart(ctx, {
     type: "line",
     data: {
-        labels: chartLabels,
-        datasets: [{
-            label: "Speed (km/h)",
-            data: chartData,
-            borderColor: "#3fb950",
-            backgroundColor: "rgba(63, 185, 80, 0.08)",
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: 0.3,
-            fill: true,
-        }],
+        labels,
+        datasets: [
+            {
+                label: "EKF Velocity",
+                data: ekfData,
+                borderColor: "#00e676",
+                backgroundColor: ekfGrad,
+                borderWidth: 2,
+                pointRadius: 0,
+                tension: 0.3,
+                fill: true,
+            },
+            {
+                label: "Raw OBD",
+                data: obdData,
+                borderColor: "rgba(255,255,255,0.15)",
+                borderDash: [4, 4],
+                borderWidth: 1.5,
+                pointRadius: 0,
+                tension: 0.3,
+                fill: false,
+            },
+        ],
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 200 },
+        animation: { duration: 0 },
+        interaction: { intersect: false, mode: "index" },
         scales: {
-            x: {
-                display: true,
-                grid: { color: "rgba(48, 54, 61, 0.5)" },
-                ticks: {
-                    color: "#8b949e",
-                    font: { size: 10, family: "monospace" },
-                    maxTicksLimit: 8,
-                    callback: function (val, index) {
-                        // Show time every ~10s
-                        return index % 10 === 0 ? this.getLabelForValue(val) : "";
-                    },
-                },
-            },
+            x: { display: false },
             y: {
-                display: true,
-                min: 0,
-                max: 120,
-                grid: { color: "rgba(48, 54, 61, 0.5)" },
-                ticks: {
-                    color: "#8b949e",
-                    font: { size: 10, family: "monospace" },
-                    callback: (v) => v + "",
-                },
+                display: true, min: 0, max: 100,
+                grid: { color: "rgba(255,255,255,0.03)", drawBorder: false },
+                ticks: { color: "#6b7280", font: { family: "JetBrains Mono", size: 10 } },
+                border: { display: false },
             },
         },
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                backgroundColor: "#1c2333",
-                titleColor: "#3fb950",
-                bodyColor: "#e6edf3",
-                borderColor: "#30363d",
-                borderWidth: 1,
-                titleFont: { family: "monospace" },
-                bodyFont: { family: "monospace" },
-            },
-        },
+        plugins: { legend: { display: false } },
     },
 });
 
-// ── OBD Card Updates ──────────────────────────────────────────────
+// ── Telemetry Stream ──────────────────────────────────────────────
+let lastTelemetryTime = Date.now();
 
-function updateOBDCards(data) {
-    const speed = data.speed;
-    const rpm = data.rpm;
-    const throttle = data.throttle;
-    const coolant = data.coolant_temp;
+socket.on("telemetry", (d) => {
+    lastTelemetryTime = Date.now();
 
-    document.getElementById("obdSpeed").textContent =
-        speed != null ? speed.toFixed(0) : "--";
-    document.getElementById("obdRPM").textContent =
-        rpm != null ? rpm.toFixed(0) : "--";
-    document.getElementById("obdThrottle").textContent =
-        throttle != null ? throttle.toFixed(1) : "--";
-    document.getElementById("obdCoolant").textContent =
-        coolant != null ? coolant.toFixed(1) : "--";
+    // Metric cards
+    const ekfEl = document.getElementById("val-ekf");
+    ekfEl.innerHTML = `${d.ekf_speed.toFixed(1)}<span class="metric-unit">km/h</span>`;
 
-    // Color-code temperature
-    const coolantEl = document.getElementById("obdCoolant");
-    if (coolant != null) {
-        if (coolant > 105) coolantEl.style.color = "var(--red)";
-        else if (coolant > 95) coolantEl.style.color = "var(--orange)";
-        else coolantEl.style.color = "var(--green)";
-    }
-}
+    const imuEl = document.getElementById("val-imu");
+    imuEl.innerHTML = `${d.imu_g.toFixed(2)}<span class="metric-unit">G</span>`;
 
-// ── Speed Chart Update ────────────────────────────────────────────
-
-function updateSpeedChart(data) {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString("en-US", {
-        hour12: false,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-    });
-
-    // Shift and push
-    chartLabels.push(timeStr);
-    chartLabels.shift();
-
-    const speed = data.speed != null ? data.speed : null;
-    chartData.push(speed);
-    chartData.shift();
-
-    speedChart.update("none"); // no animation for smoother updates
-}
-
-// ── Audio Classification ──────────────────────────────────────────
-
-const audioLabelEl = document.getElementById("audioLabel");
-const audioConfEl = document.getElementById("audioConf");
-
-function updateAudioClassification(data) {
-    const ac = data.audio_classification;
-    if (!ac) return;
-
-    const label = ac.label || "normal";
-    const confidence = ac.confidence != null ? ac.confidence : 0;
-
-    audioLabelEl.textContent = label.toUpperCase();
-    audioLabelEl.className = "audio-label " + label;
-    audioConfEl.textContent = "Confidence: " + (confidence * 100).toFixed(0) + "%";
-}
-
-// ── Alerts List ───────────────────────────────────────────────────
-
-const alertsList = document.getElementById("alertsList");
-const MAX_ALERTS_SHOWN = 5;
-let alertCount = 0;
-
-function addAlertToList(event) {
-    if (alertCount === 0) {
-        alertsList.innerHTML = ""; // clear "No alerts yet"
-    }
-
-    const type = event.type || "unknown";
-    const confidence = event.confidence != null ? (event.confidence * 100).toFixed(0) + "%" : "??";
-    const timestamp = formatTime(event.timestamp);
-
-    const item = document.createElement("div");
-    item.className = "alert-item " + (type || "unknown");
-    item.innerHTML = `
-        <div class="alert-type">${formatAlertType(type)}</div>
-        <div class="alert-meta">
-            ${timestamp} &middot; Confidence ${confidence}
-        </div>
-    `;
-
-    alertsList.prepend(item);
-    alertCount++;
-
-    // Enforce max alerts shown
-    while (alertsList.children.length > MAX_ALERTS_SHOWN) {
-        alertsList.removeChild(alertsList.lastChild);
-    }
-}
-
-function formatAlertType(type) {
-    return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function formatTime(isoString) {
-    try {
-        const d = new Date(isoString);
-        return d.toLocaleTimeString("en-US", {
-            hour12: false,
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-        });
-    } catch {
-        return "--:--:--";
-    }
-}
-
-// ── Toast Notifications ───────────────────────────────────────────
-
-function showToast(event) {
-    const container = document.getElementById("toastContainer");
-
-    const toast = document.createElement("div");
-    toast.className = "toast";
-    toast.textContent =
-        "\u26A0 " + formatAlertType(event.type) +
-        " (" + (event.confidence != null ? (event.confidence * 100).toFixed(0) + "%" : "?") + ")";
-
-    container.appendChild(toast);
-
-    // Auto-remove after fade-out
-    setTimeout(() => {
-        if (toast.parentNode) {
-            toast.remove();
-        }
-    }, 5200);
-}
-
-// ── Status Badge ──────────────────────────────────────────────────
-
-function updateStatusBadge(online) {
-    const badge = document.getElementById("statusBadge");
-    const text = document.getElementById("statusText");
-    if (online) {
-        badge.className = "status-badge online";
-        text.textContent = "ONLINE";
+    const audioEl = document.getElementById("val-audio");
+    audioEl.textContent = d.audio_label.toUpperCase();
+    const audioCard = document.getElementById("card-audio");
+    if (d.audio_label === "crash") {
+        audioEl.className = "metric-value mono m-red";
+        audioCard.className = "glass metric-card red";
+    } else if (d.audio_label === "horn" || d.audio_label === "siren") {
+        audioEl.className = "metric-value mono m-yellow";
+        audioCard.className = "glass metric-card yellow";
     } else {
-        badge.className = "status-badge offline";
-        text.textContent = "OFFLINE";
+        audioEl.className = "metric-value mono m-yellow";
+        audioCard.className = "glass metric-card yellow";
     }
-}
 
-// ── Footer Updates ────────────────────────────────────────────────
-
-function updateFooter(status) {
-    document.getElementById("footerUptime").textContent =
-        status.uptime_formatted || "--";
-
-    const wifiEl = document.getElementById("footerWifi");
-    const wifiDot = document.getElementById("wifiDot");
-    wifiEl.textContent = status.mode === "live" ? "Active" : "Demo";
-    wifiDot.className = "footer-dot " + (status.mode === "live" ? "good" : "warn");
-
-    const battery = status.battery_v;
-    const batteryEl = document.getElementById("footerBattery");
-    if (battery != null) {
-        batteryEl.textContent = battery.toFixed(1) + "V";
+    const healthEl = document.getElementById("val-health");
+    const cap = (d.capacity * 100).toFixed(0);
+    healthEl.innerHTML = `${cap}<span class="metric-unit">%</span>`;
+    const healthCard = document.getElementById("card-health");
+    if (cap >= 80) {
+        healthEl.className = "metric-value mono m-green";
+        healthCard.className = "glass metric-card green";
+    } else if (cap >= 50) {
+        healthEl.className = "metric-value mono m-yellow";
+        healthCard.className = "glass metric-card yellow";
     } else {
-        batteryEl.textContent = "--";
+        healthEl.className = "metric-value mono m-red";
+        healthCard.className = "glass metric-card red";
     }
 
-    document.getElementById("footerMode").textContent =
-        "MODE: " + (status.mode || "--").toUpperCase();
-}
+    // Chart
+    ekfData.push(d.ekf_speed);
+    ekfData.shift();
+    obdData.push(d.raw_speed);
+    obdData.shift();
+    velocityChart.update();
 
-// ── Clock ─────────────────────────────────────────────────────────
-
-function updateClock() {
-    const now = new Date();
-    document.getElementById("clock").textContent = now.toLocaleTimeString("en-US", {
-        hour12: false,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-    });
-}
-updateClock();
-setInterval(updateClock, 1000);
-
-// ── Demo Crash Button ─────────────────────────────────────────────
-
-document.getElementById("demoCrashBtn").addEventListener("click", () => {
-    const btn = document.getElementById("demoCrashBtn");
-    btn.textContent = "Sending...";
-    btn.disabled = true;
-
-    fetch("/api/demo/crash", { method: "POST" })
-        .then((res) => res.json())
-        .then((data) => {
-            console.log("[VISTA] Demo crash response:", data);
-            btn.textContent = "\u2713 Simulated!";
-            setTimeout(() => {
-                btn.textContent = "\u26A0 Trigger Crash Demo";
-                btn.disabled = false;
-            }, 2000);
-        })
-        .catch((err) => {
-            console.error("[VISTA] Demo crash failed:", err);
-            btn.textContent = "\u2717 Failed";
-            setTimeout(() => {
-                btn.textContent = "\u26A0 Trigger Crash Demo";
-                btn.disabled = false;
-            }, 2000);
-        });
+    // Architecture flow: pulse intel node
+    pulseNode("node-intel");
 });
 
-// ── Initial State Fetch ───────────────────────────────────────────
+// ── Alert Stream ──────────────────────────────────────────────────
+socket.on("alert", (ev) => {
+    const feed = document.getElementById("alertFeed");
+    const item = document.createElement("div");
+    const d = new Date(ev.timestamp);
+    const ts = d.toLocaleTimeString([], { hour12: false }) + "." + d.getMilliseconds().toString().padStart(3, "0");
 
-function fetchInitialState() {
-    // Fetch system status
-    fetch("/api/status")
-        .then((res) => res.json())
-        .then((status) => {
-            updateFooter(status);
-            updateStatusBadge(status.sensors && Object.values(status.sensors).some(Boolean));
-        })
-        .catch((err) => console.warn("[VISTA] Status fetch failed:", err));
+    if (ev.type === "crash") {
+        item.className = "alert-item critical";
+        item.innerHTML = `
+            <div class="alert-head">
+                <span style="color:var(--accent-red)">💥 COLLISION DETECTED</span>
+                <span class="alert-time">${ts}</span>
+            </div>
+            <div>Confidence: ${(ev.confidence * 100).toFixed(1)}% · Impact: ${ev.details.impact_g.toFixed(1)}G</div>
+        `;
+        triggerCrashFlash();
+        pulseNode("node-comms");
+    } else if (ev.type.startsWith("rejected")) {
+        const reason = ev.type.replace("rejected_", "").toUpperCase();
+        item.className = "alert-item warning";
+        item.innerHTML = `
+            <div class="alert-head">
+                <span style="color:var(--accent-yellow)">🛡️ FILTERED: ${reason}</span>
+                <span class="alert-time">${ts}</span>
+            </div>
+            <div>Peak: ${ev.details.impact_g.toFixed(1)}G · Rejected by signature analysis</div>
+        `;
+    } else if (ev.type === "theft_attempt") {
+        item.className = "alert-item security";
+        item.innerHTML = `
+            <div class="alert-head">
+                <span style="color:var(--accent-purple)">🔓 CAN-BUS INJECTION</span>
+                <span class="alert-time">${ts}</span>
+            </div>
+            <div>${ev.details.action}</div>
+        `;
+        updateSecurity("THREAT", true);
+    } else if (ev.type === "theft_prevented") {
+        item.className = "alert-item info";
+        item.innerHTML = `
+            <div class="alert-head">
+                <span style="color:var(--accent-blue)">🛡️ GHOST KEY TSA</span>
+                <span class="alert-time">${ts}</span>
+            </div>
+            <div>${ev.details.action}</div>
+        `;
+        updateSecurity("DEFENDED", false);
+        pulseNode("node-comms");
+    }
 
-    // Fetch recent events
-    fetch("/api/events/recent?limit=5")
-        .then((res) => res.json())
-        .then((data) => {
-            if (data.events && data.events.length > 0) {
-                // Reverse to show oldest-first (they prepend)
-                data.events.slice().reverse().forEach(addAlertToList);
-            }
-        })
-        .catch((err) => console.warn("[VISTA] Events fetch failed:", err));
+    feed.prepend(item);
+    while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+});
+
+// ── Crash Flash ───────────────────────────────────────────────────
+function triggerCrashFlash() {
+    const el = document.getElementById("flashOverlay");
+    el.classList.add("active");
+    setTimeout(() => el.classList.remove("active"), 200);
+    // Double flash
+    setTimeout(() => {
+        el.classList.add("active");
+        setTimeout(() => el.classList.remove("active"), 150);
+    }, 300);
 }
 
-// ── Periodic Full Refresh (backup for SocketIO gaps) ──────────────
+// ── Security Status ───────────────────────────────────────────────
+function updateSecurity(text, isThreat) {
+    const el = document.getElementById("val-security");
+    const card = document.getElementById("card-security");
+    el.textContent = text;
+    if (isThreat) {
+        el.className = "metric-value mono m-red";
+        card.className = "glass metric-card red";
+        card.style.animation = "none";
+        card.offsetHeight; // reflow
+        card.style.animation = "threatPulse 0.5s ease 3";
+    } else {
+        el.className = "metric-value mono m-green";
+        card.className = "glass metric-card green";
+    }
+    // Reset after 5s
+    setTimeout(() => {
+        el.textContent = "ARMED";
+        el.className = "metric-value mono m-green";
+        card.className = "glass metric-card purple";
+    }, 5000);
+}
 
+// ── Architecture Node Pulse ───────────────────────────────────────
+function pulseNode(nodeId) {
+    const node = document.getElementById(nodeId);
+    if (!node) return;
+    node.style.borderColor = "var(--accent-green)";
+    node.style.boxShadow = "0 0 12px rgba(0,230,118,0.2)";
+    setTimeout(() => {
+        node.style.borderColor = "";
+        node.style.boxShadow = "";
+    }, 300);
+}
+
+// ── Sensor Health Ring Updates ─────────────────────────────────────
+function updateSensorRing(ringId, isAlive) {
+    const ring = document.getElementById(ringId);
+    if (!ring) return;
+    const fill = ring.querySelector(".health-ring-fill");
+    const text = ring.querySelector(".health-ring-text");
+    if (isAlive) {
+        fill.setAttribute("stroke", "var(--accent-green)");
+        fill.setAttribute("stroke-dashoffset", "0");
+        text.textContent = "●";
+        text.className = "health-ring-text m-green";
+    } else {
+        fill.setAttribute("stroke", "var(--accent-red)");
+        fill.setAttribute("stroke-dashoffset", "94.2");
+        text.textContent = "✕";
+        text.className = "health-ring-text m-red";
+    }
+}
+
+// Check connection liveness every 3s
 setInterval(() => {
-    fetch("/api/status")
-        .then((res) => res.json())
-        .then(updateFooter)
+    const alive = (Date.now() - lastTelemetryTime) < 5000;
+    const badge = document.getElementById("systemStatus");
+    const statusText = document.getElementById("statusText");
+    if (alive) {
+        badge.className = "status-badge online";
+        statusText.textContent = "PIPELINE ONLINE";
+    } else {
+        badge.className = "status-badge warning";
+        statusText.textContent = "AWAITING DATA";
+    }
+}, 3000);
+
+// ── Scenario Trigger ──────────────────────────────────────────────
+window.triggerScenario = function (name) {
+    ekfData.fill(null);
+    obdData.fill(null);
+    velocityChart.update();
+
+    // Pulse architecture flow
+    ["node-sensors", "node-hal", "node-intel", "node-decision", "node-comms"].forEach((id, i) => {
+        setTimeout(() => pulseNode(id), i * 200);
+    });
+
+    fetch("/api/demo/scenario", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenario: name }),
+    })
+        .then((r) => r.json())
+        .then((data) => {
+            const feed = document.getElementById("alertFeed");
+            const marker = document.createElement("div");
+            marker.style.cssText = "padding:6px 10px;color:var(--accent-blue);font-family:JetBrains Mono;font-size:11px;opacity:0.7";
+            marker.textContent = `▶ SCENARIO: ${name.toUpperCase()}`;
+            feed.prepend(marker);
+        });
+};
+
+// ── NVH Polling ───────────────────────────────────────────────────
+function fetchNVH() {
+    fetch("/api/nvh/score")
+        .then((r) => r.json())
+        .then((data) => {
+            const score = data.nvh_health_score_fft;
+            const error = data.reconstruction_error;
+            const anomaly = data.drivetrain_anomaly_detected;
+
+            // Top card
+            document.getElementById("nvh-score").innerHTML = `${score.toFixed(1)}<span class="metric-unit">%</span>`;
+
+            // Large panel
+            document.getElementById("nvh-score-lg").innerHTML = `${score.toFixed(1)}<span class="metric-unit">%</span>`;
+            document.getElementById("nvh-error").textContent = error.toFixed(3);
+
+            // Health bar
+            const bar = document.getElementById("nvh-bar");
+            bar.style.width = `${score}%`;
+
+            const bandEl = document.getElementById("nvh-band");
+
+            if (anomaly) {
+                document.getElementById("nvh-score-lg").className = "metric-value mono m-red";
+                document.getElementById("nvh-error").style.color = "var(--accent-red)";
+                bar.style.background = "var(--accent-red)";
+                bandEl.className = "mono m-red";
+                bandEl.textContent = `⚠ ${data.anomaly_frequency_band}`;
+                document.getElementById("card-nvh").className = "glass metric-card red";
+            } else {
+                document.getElementById("nvh-score-lg").className = "metric-value mono m-blue";
+                document.getElementById("nvh-error").style.color = "var(--text-primary)";
+                bar.style.background = "var(--accent-blue)";
+                bandEl.className = "mono m-green";
+                bandEl.textContent = "Nominal";
+                document.getElementById("card-nvh").className = "glass metric-card blue";
+            }
+        })
         .catch(() => {});
-}, 10000);
+}
+
+setInterval(fetchNVH, 3000);
+fetchNVH();
+
+// ── Ambient Architecture Animation ────────────────────────────────
+let archIdx = 0;
+const archNodes = ["node-sensors", "node-hal", "node-intel", "node-decision", "node-comms", "node-storage"];
+setInterval(() => {
+    pulseNode(archNodes[archIdx % archNodes.length]);
+    archIdx++;
+}, 2000);

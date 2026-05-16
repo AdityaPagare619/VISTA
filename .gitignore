@@ -59,3 +59,12 @@ service-account.json
 
 # Raspberry Pi
 *.pyc.bak
+
+# Large files
+*.mp4
+*.docx
+
+# Audio datasets (large, contain nested git repos)
+data/esc50/
+data/nina/
+data/

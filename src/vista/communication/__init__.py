@@ -4,10 +4,11 @@ VISTA Communication Layer
 Alert routing, MQTT telemetry, BLE peripheral, and cloud messaging.
 
 Exports:
-    MQTTManager   — MQTT publisher/subscriber to local broker
-    BLEManager    — BLE peripheral advertising vehicle data
-    AlertManager  — Multi-channel alert router (Telegram/BLE/MQTT/buzzer)
-    Decision      — Structured decision output from the intelligence engine
+    MQTTManager      — MQTT publisher/subscriber to local broker
+    BLEManager       — BLE peripheral advertising vehicle data
+    AlertManager     — Multi-channel alert router (Telegram/BLE/MQTT/buzzer)
+    TelegramAlertBot — Primary Telegram alert delivery (v3.0)
+    Decision         — Structured decision output from the intelligence engine
 """
 
 from __future__ import annotations
@@ -148,13 +149,15 @@ except ImportError:
 
 # ── Public API ────────────────────────────────────────────────────
 
-from .mqtt_manager import MQTTManager    # noqa: E402
-from .ble_manager import BLEManager      # noqa: E402
-from .alert_manager import AlertManager  # noqa: E402
+from .mqtt_manager import MQTTManager        # noqa: E402
+from .ble_manager import BLEManager          # noqa: E402
+from .alert_manager import AlertManager      # noqa: E402
+from .telegram_bot import TelegramAlertBot   # noqa: E402
 
 __all__ = [
     "Decision",
     "MQTTManager",
     "BLEManager",
     "AlertManager",
+    "TelegramAlertBot",
 ]
