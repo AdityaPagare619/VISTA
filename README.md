@@ -1,4 +1,6 @@
-# VISTA — Vehicle Intelligence & Safety Telematics Architecture
+<div align="center">
+
+# VISTA — Your Intelligent Safety Guardian
 
 [![CI](https://github.com/AdityaPagare619/VISTA/actions/workflows/ci.yml/badge.svg)](https://github.com/AdityaPagare619/VISTA/actions)
 [![Status](https://img.shields.io/badge/status-v4.0%20verified-brightgreen)](https://github.com/AdityaPagare619/VISTA)
@@ -7,31 +9,101 @@
 [![Tests](https://img.shields.io/badge/tests-20%2F20%20passing-brightgreen)](src/vista/tests)
 [![BOM](https://img.shields.io/badge/BOM-%E2%82%B95%2C770-yellow)](raw/DESIGN/DESIGN_v4/docs/02_HARDWARE_DESIGN.md)
 
-> **Hybrid edge-cloud multi-modal vehicle intelligence platform for Indian road safety.**
-> Final Year Project — Electronics & Telecommunication Engineering.
-> Built on ₹5,770 of hardware. Verified: 19/19 modules, 20/20 tests, 3/3 SITL scenarios.
+**VISTA doesn't just monitor your car — it protects you and keeps your loved ones informed.** 
+*The system continuously learns from sensor data, camera vision, and driving patterns to predict problems before they become expensive repairs or safety hazards.*
+
+<video src="https://github.com/AdityaPagare619/VISTA/raw/master/assets/VISTA_explainer.mp4" width="100%" controls autoplay loop muted></video>
+
+*(Note: If the video above does not play natively, you can [view/download the raw file here](https://github.com/AdityaPagare619/VISTA/raw/master/assets/VISTA_explainer.mp4))*
+
+</div>
 
 ---
 
-## What VISTA Is
-
-VISTA is a vehicle-mounted intelligence system that fuses four physical sensing modalities — OBD-II vehicle bus data, inertial measurement, acoustic classification, and camera — to detect safety-critical events and respond autonomously.
-
-The system runs on a Raspberry Pi 4B as the primary compute unit and an ESP32-C3 as a 5μA always-on sentinel. Together they provide:
-
-**Crash Detection** — A 4-tier detection pipeline that distinguishes real collisions from potholes and speed bumps using temporal pattern analysis across IMU jerk signatures, YAMNet audio classification, OBD-II speed telemetry, and Gemini cloud vision.
-
-**Ghost Key TSA (Theft Prevention)** — A temporal sequence analysis engine that defends against the three dominant modern vehicle theft vectors: relay attacks, CAN-bus injection, and master key duplication. It analyzes the physical sequence of events (BLE presence, door opening, seat occupancy, timing) rather than reacting to any single trigger. When theft is confirmed, a physical fuel pump relay is cut — a hardware-layer response that cannot be defeated by software.
-
-**Predictive NVH Analytics** — A drivetrain health monitoring pipeline using FFT-based vibration analysis and a Gemini-powered "expert mechanic" report, enabling B2B insurance and fleet management integrations.
-
-**Operational Visibility** — A SystemHealthMonitor that tracks sensor liveness and system resources every 30 seconds, ensuring fleet operators know the real-time health of each unit.
+## 📑 Table of Contents
+- [What You Get](#-what-you-get)
+- [Enterprise Value](#-enterprise-value)
+  - [For Insurance Companies](#-for-insurance-companies-the-truth-layer)
+  - [For Automotive Manufacturers](#-for-automotive-manufacturers-nvh-global-fleet-intelligence)
+- [Hardware & BOM](#-hardware)
+- [Engineering & Architecture](#-engineering--architecture)
+- [Key Design Decisions](#-key-design-decisions)
+- [System Verification](#-system-verification)
+- [Quick Start](#-quick-start)
+- [Documentation & Project Structure](#-documentation)
+- [Team & License](#-team)
 
 ---
 
-## Architecture
+## ⚡ What You Get
 
-```
+- 🚨 **Instant crash alerts** to you and emergency contacts with precise location data.
+- 🔒 **Theft detection & real-time notifications** the moment unusual activity occurs.
+- 🔧 **Predictive maintenance warnings** that catch issues before breakdowns happen.
+- 📊 **Driving pattern analysis** that identifies risky behaviors and suggests improvements.
+- 🛠️ **Pre-tuned maintenance schedules** shared directly with your trusted mechanic.
+
+> The longer VISTA runs, the smarter it becomes — learning your vehicle's unique behavior to separate normal wear from genuine concerns. It's not just protecting your car; it's protecting you.
+
+---
+
+## 🏢 Enterprise Value
+
+### 🛡️ For Insurance Companies: The Truth Layer
+Insurance fraud costs the industry billions annually. VISTA provides an intelligent black box that doesn't just record — it analyzes, contextualizes, and delivers forensic-grade incident data.
+
+- **Undeniable incident reconstruction** with multi-sensor data fusion (vision + telemetry)
+- **Fraud detection patterns** identified through AI analysis of crash signatures
+- **Pre-crash behavior analysis** showing driver actions in the critical seconds before impact
+- **Automated claims validation** reducing investigation time from weeks to minutes
+
+*Replace guesswork with ground truth. VISTA transforms claims processing from adversarial negotiation into objective data analysis.*
+
+### 🏭 For Automotive Manufacturers (NVH): Global Fleet Intelligence
+Traditional R&D costs billions and relies on controlled test environments. VISTA delivers something far more valuable: real-world, structured intelligence from thousands of vehicles operating in actual conditions.
+
+- **Component failure patterns** identified across your entire fleet before recalls become necessary
+- **Real-world performance metrics** from diverse geographies, climates, and driving conditions
+- **Early warning system** for design flaws that only emerge in production environments
+- **Competitive intelligence** through aggregate performance benchmarking
+
+*VISTA turns every vehicle into a distributed R&D sensor, potentially saving hundreds of millions in traditional testing costs.*
+
+### 🔗 The Common Thread
+Each stakeholder receives fundamentally different value from the same underlying platform. VISTA adapts its intelligence layer to serve the unique needs of drivers, insurers, and manufacturers — proving that in the modern era, the same data can unlock entirely different forms of value.
+
+---
+
+## 🔌 Hardware
+
+**Total BOM: ₹5,770 (~$69 USD)** · **Recurring cloud cost: ₹0/month**
+
+| Component | Purpose | Cost |
+|---|---|---|
+| Raspberry Pi 4B (4GB) | Main compute | ₹0 (owned) |
+| ESP32-C3-DevKitM-1 | Always-on 5μA sentinel | ₹400 |
+| ELM327 OBD-II (USB) | Vehicle CAN data | ₹500 |
+| MPU6050 GY-521 | Crash + motion detection | ₹150 |
+| Pi Camera v3 (IMX708) | Scene capture for Gemini | ₹1,800 |
+| USB Microphone | YAMNet audio classification | ₹200 |
+| HC-SR501 PIR | Parked intrusion detection | ₹80 |
+| AO3401 P-MOSFET + 2N2222 | Pi power control circuit | ₹60 |
+| Fuel pump relay module | Ghost Key physical immobilizer | ₹60 |
+| DC-DC LM2596 (12V→5V) | Car power regulation | ₹300 |
+| Kingston A400 SSD (120GB) | Event DB + images (not SD) | ₹900 |
+| Misc (wires, resistors, enclosure) | Assembly | ₹320 |
+
+> The USB SSD is mandatory, not optional. SQLite in WAL mode and InfluxDB write-heavy workloads destroy SD card flash cells within weeks.
+
+See → [`raw/DESIGN/DESIGN_v4/docs/02_HARDWARE_DESIGN.md`](raw/DESIGN/DESIGN_v4/docs/02_HARDWARE_DESIGN.md) for complete pin diagrams, wiring schematics, and installation guide.
+
+---
+
+## ⚙️ Engineering & Architecture
+
+VISTA is a vehicle-mounted intelligence system built on ₹5,770 of hardware, fusing four physical sensing modalities — OBD-II vehicle bus data, inertial measurement, acoustic classification, and camera — to detect safety-critical events and respond autonomously.
+
+```text
 ┌──────────────────────────────────────────────────────────────────┐
 │                    VEHICLE SENSING LAYER                          │
 │  OBD-II ELM327    MPU6050 IMU     USB Microphone   Pi Camera v3 │
@@ -77,32 +149,7 @@ The system runs on a Raspberry Pi 4B as the primary compute unit and an ESP32-C3
 
 ---
 
-## Hardware
-
-**Total BOM: ₹5,770 (~$69 USD)** · **Recurring cloud cost: ₹0/month**
-
-| Component | Purpose | Cost |
-|---|---|---|
-| Raspberry Pi 4B (4GB) | Main compute | ₹0 (owned) |
-| ESP32-C3-DevKitM-1 | Always-on 5μA sentinel | ₹400 |
-| ELM327 OBD-II (USB) | Vehicle CAN data | ₹500 |
-| MPU6050 GY-521 | Crash + motion detection | ₹150 |
-| Pi Camera v3 (IMX708) | Scene capture for Gemini | ₹1,800 |
-| USB Microphone | YAMNet audio classification | ₹200 |
-| HC-SR501 PIR | Parked intrusion detection | ₹80 |
-| AO3401 P-MOSFET + 2N2222 | Pi power control circuit | ₹60 |
-| Fuel pump relay module | Ghost Key physical immobilizer | ₹60 |
-| DC-DC LM2596 (12V→5V) | Car power regulation | ₹300 |
-| Kingston A400 SSD (120GB) | Event DB + images (not SD) | ₹900 |
-| Misc (wires, resistors, enclosure) | Assembly | ₹320 |
-
-> The USB SSD is mandatory, not optional. SQLite in WAL mode and InfluxDB write-heavy workloads destroy SD card flash cells within weeks.
-
-See → [`raw/DESIGN/DESIGN_v4/docs/02_HARDWARE_DESIGN.md`](raw/DESIGN/DESIGN_v4/docs/02_HARDWARE_DESIGN.md) for complete pin diagrams, wiring schematics, and installation guide.
-
----
-
-## Key Design Decisions
+## 🔑 Key Design Decisions
 
 **Tiered sensor architecture, not equal weighting.**
 The IMU responds in <10ms. Audio responds in ~50ms. OBD responds in 300–500ms. These sensors cannot be treated as equals. VISTA assigns them roles: IMU is the primary trigger, Audio is the fast corroborator, OBD is the async post-event confirmation.
@@ -121,9 +168,11 @@ OBD-II achieves 2–3 Hz in practice, not 10 Hz. Pi 4 cannot suspend-to-RAM. MPU
 
 ---
 
-## System Verification (May 16, 2026)
+## 🧪 System Verification
 
-```
+*(Last verified: May 16, 2026)*
+
+```text
 python -m pytest src/vista/tests/test_v3_quick.py
 → 20 passed, 0 failed
 
@@ -139,7 +188,7 @@ Import check:
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 ```bash
 git clone https://github.com/AdityaPagare619/VISTA.git
@@ -161,7 +210,7 @@ sudo systemctl start vista vista-dashboard
 
 ---
 
-## Documentation
+## 📚 Documentation
 
 | Document | For |
 |---|---|
@@ -175,9 +224,9 @@ sudo systemctl start vista vista-dashboard
 
 ---
 
-## Project Structure
+## 📂 Project Structure
 
-```
+```text
 VISO-PROJECT/
 ├── README.md
 ├── pyproject.toml              ← pytest config
@@ -200,7 +249,7 @@ VISO-PROJECT/
 
 ---
 
-## Team
+## 👥 Team
 
 | Role | Domain |
 |---|---|
@@ -211,6 +260,8 @@ VISO-PROJECT/
 
 ---
 
-## License
+## 📜 License & Contribution
 
-MIT — use, modify, and build upon freely. Credit appreciated.
+This project is licensed under the **MIT License** — use, modify, and build upon freely. Credit appreciated.
+
+Contributions are welcome! Please feel free to submit a Pull Request.
