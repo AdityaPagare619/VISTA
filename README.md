@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/vista_hero.png" width="100%" alt="VISTA Hero Banner" style="border-radius: 12px; margin-bottom: 20px;">
+
 # VISTA — Your Intelligent Safety Guardian
 
 [![CI](https://github.com/AdityaPagare619/VISTA/actions/workflows/ci.yml/badge.svg)](https://github.com/AdityaPagare619/VISTA/actions)
@@ -12,10 +14,28 @@
 **VISTA doesn't just monitor your car — it protects you and keeps your loved ones informed.** 
 *The system continuously learns from sensor data, camera vision, and driving patterns to predict problems before they become expensive repairs or safety hazards.*
 
-<video src="https://github.com/AdityaPagare619/VISTA/raw/master/assets/VISTA_explainer.mp4" width="100%" controls autoplay loop muted></video>
+</div>
 
-*(Note: If the video above does not play natively, you can [view/download the raw file here](https://github.com/AdityaPagare619/VISTA/raw/master/assets/VISTA_explainer.mp4))*
+---
 
+### 🎥 VISTA Explainer & Live Demonstration
+
+<div align="center">
+  <a href="https://github.com/AdityaPagare619/VISTA/blob/master/assets/VISTA_explainer.mp4?raw=true">
+    <img src="assets/vista_dashboard_ui.png" width="90%" alt="Watch VISTA Demonstration Video" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.3); border: 2px solid #222;">
+  </a>
+  <p align="center">
+    <b>⚡ Click the player above to watch the VISTA HD explainer video! ⚡</b><br>
+    <sub>(Visualizing edge AI collision alerts, YAMNet acoustic processing, real-time CAN/OBD telemetry, and Gemini-powered damage analytics)</sub>
+  </p>
+  <p align="center">
+    <a href="https://github.com/AdityaPagare619/VISTA/blob/master/assets/VISTA_explainer.mp4?raw=true">
+      <img src="https://img.shields.io/badge/%E2%96%B6%20Play%20Explainer%20Video-000000?style=for-the-badge&logo=git&logoColor=white&labelColor=FF4B4B" alt="Play Video">
+    </a>
+    <a href="https://github.com/AdityaPagare619/VISTA/raw/master/assets/VISTA_explainer.mp4">
+      <img src="https://img.shields.io/badge/%F0%9F%93%A5%20Download%20MP4-333333?style=for-the-badge&logo=airplay&logoColor=white" alt="Download Video">
+    </a>
+  </p>
 </div>
 
 ---
@@ -97,6 +117,24 @@ Each stakeholder receives fundamentally different value from the same underlying
 
 See → [`raw/DESIGN/DESIGN_v4/docs/02_HARDWARE_DESIGN.md`](raw/DESIGN/DESIGN_v4/docs/02_HARDWARE_DESIGN.md) for complete pin diagrams, wiring schematics, and installation guide.
 
+#### 🛠️ Custom Hardware Stack & PCB Layouts
+
+VISTA's electrical engineering incorporates a custom ESP32-C3 coprocessor architecture, transient-protected DC-DC regulators, and active power MOSFET controls. Below are the design assets:
+
+<p align="center">
+  <img src="assets/vista_hardware_stack.png" width="95%" alt="VISTA Custom Hardware Stack" style="border-radius: 8px;">
+</p>
+
+<p align="center">
+  <img src="assets/vista_easyeda_schematic.png" width="48%" alt="VISTA Schematic Design" style="border-radius: 8px; margin-right: 2%;">
+  <img src="assets/vista_pcb_footprint.png" width="48%" alt="VISTA PCB Layout" style="border-radius: 8px;">
+</p>
+
+<p align="center">
+  <img src="assets/vista_altium_3d_render.png" width="48%" alt="VISTA Altium 3D Render" style="border-radius: 8px; margin-right: 2%;">
+  <img src="assets/vista_gerber_stackup.png" width="48%" alt="VISTA Gerber Stackup" style="border-radius: 8px;">
+</p>
+
 ---
 
 ## ⚙️ Engineering & Architecture
@@ -145,6 +183,14 @@ VISTA is a vehicle-mounted intelligence system built on ₹5,770 of hardware, fu
 │  Deep sleep: 5μA · PIR intrusion · BLE auth · MOSFET Pi power   │
 │  Battery monitor · Heartbeat watchdog · 4-state machine          │
 └──────────────────────────────────────────────────────────────────┘
+
+#### 🗺️ Unified System Block Diagram
+
+The complete hardware, signal processing, edge logic, and secure BLE/cellular cloud communications topology:
+
+<p align="center">
+  <img src="assets/vista_system_block_diagram.png" width="95%" alt="VISTA System Architecture Block Diagram" style="border-radius: 8px;">
+</p>
 ```
 
 ---
@@ -166,6 +212,22 @@ Gemini 1.5-flash replaces 5 separate local vision models (object detection, scen
 **Every hardware claim must survive physics.**
 OBD-II achieves 2–3 Hz in practice, not 10 Hz. Pi 4 cannot suspend-to-RAM. MPU6050 saturates at ±16g — deliberately configured at maximum range because real crashes produce 20–70g. These are not assumptions; they are measured facts baked into `config.yaml`.
 
+#### ⚡ Edge-Level Sensor Fusion
+
+The asynchronous decision cascade prioritizing immediate IMU/jerk detection, fast YAMNet acoustic confirmation, post-event OBD-II telemetry verification, and cloud vision corroboration:
+
+<p align="center">
+  <img src="assets/vista_sensor_fusion.png" width="95%" alt="VISTA Sensor Fusion Logic" style="border-radius: 8px;">
+</p>
+
+#### 🔒 Ghost Key Anti-Theft Verification
+
+Hardware-layer fuel pump immobilizer relay state flow, requiring active Bluetooth Low Energy (BLE) secure token handshake to authenticate:
+
+<p align="center">
+  <img src="assets/vista_ghost_key.png" width="95%" alt="VISTA Ghost Key Immobilizer Workflow" style="border-radius: 8px;">
+</p>
+
 ---
 
 ## 🧪 System Verification
@@ -185,6 +247,15 @@ python scripts/demo_billion_dollar_architecture.py
 Import check:
 → 19/19 modules importable (DEMO_MODE=true)
 ```
+
+#### 🚨 Crash/Theft Forensic Analysis & Unit Placement
+
+VISTA uses physical placement optimized for cabin soundscapes and vehicle axis alignment, combined with real-world Telegram visual warning cards generated in under 3.5 seconds:
+
+<p align="center">
+  <img src="assets/vista_placement_diagram.png" width="48%" alt="VISTA Vehicle Unit Placement" style="border-radius: 8px; margin-right: 2%;">
+  <img src="assets/collision_alert_view.png" width="48%" alt="Real-time Collision Alert View" style="border-radius: 8px;">
+</p>
 
 ---
 
